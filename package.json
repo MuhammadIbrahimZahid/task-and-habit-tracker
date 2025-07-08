@@ -6,7 +6,10 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,css,md,json,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,css,md,json,yml,yaml}\"",
+    "test": "jest --coverage"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
