@@ -1,0 +1,29 @@
+# Ignore build and dependency folders
+/node_modules
+/.next
+/out
+/dist
+/build
+
+# Ignore log and environment files
+*.log
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Ignore coverage reports
+/coverage
+
+# Ignore config files managed by other tools
+/*.config.js
+/*.config.cjs
+
+# Ignore generated types and assets
+/public/generated
+/src/generated
+
+# Ignore miscellaneous
+.DS_Store
+.vscode
