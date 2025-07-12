@@ -1,7 +1,12 @@
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+
 export default function HomePage() {
   return (
     <div>
-      <h1>Hello World</h1>
+      <Button asChild>
+        <Link href="/sign-in">Sign In With Google</Link>
+      </Button>
     </div>
   );
 }
