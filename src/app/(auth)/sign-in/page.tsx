@@ -22,7 +22,7 @@ export default function SignInPage() {
           <div className="space-y-3">
             <form
               className="bg-gray-100 hover:bg-gray-200"
-              action={handleSignIn}
+              onSubmit={handleSignIn}
             >
               <Button
                 className="flex w-full items-center justify-center gap-x-3"
