@@ -9,7 +9,7 @@ export async function signInWithGoogle(redirectTo: string) {
   const baseUrl = isDev
     ? 'http://localhost:3000'
     : process.env.NEXT_PUBLIC_SITE_URL ||
-      'https://your-vercel-domain.vercel.app';
+      'https://task-and-habit-tracker.vercel.app';
 
   const redirectUrl = `${baseUrl}/auth/callback?next=${redirectTo}`;
 
