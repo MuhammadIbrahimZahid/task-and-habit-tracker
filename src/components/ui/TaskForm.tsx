@@ -1,6 +1,21 @@
 'use client';
+
+import type React from 'react';
+
 import { useState } from 'react';
 import { createTask } from '@/lib/tasks';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Calendar, Clock, Flag, FileText } from 'lucide-react';
 
 type TaskFormProps = {
   userId: string;
@@ -15,9 +30,12 @@ export default function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
     'pending',
   );
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
+
     try {
       await createTask({
         userId,
@@ -39,55 +57,121 @@ export default function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
       if (onTaskCreated) onTaskCreated();
     } catch (error) {
       console.error('Error creating task:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <input
-        type="text"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="Task Title"
-        required
-        className="w-full p-2 border border-gray-300 rounded"
-      />
-      <textarea
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        placeholder="Task Description"
-        className="w-full p-2 border border-gray-300 rounded"
-      />
-      <select
-        value={status}
-        onChange={(e) => setStatus(e.target.value as any)}
-        className="w-full p-2 border border-gray-300 rounded"
-      >
-        <option value="pending">Pending</option>
-        <option value="in_progress">In Progress</option>
-        <option value="completed">Completed</option>
-      </select>
-      <select
-        value={priority}
-        onChange={(e) => setPriority(e.target.value as any)}
-        className="w-full p-2 border border-gray-300 rounded"
-      >
-        <option value="low">Low Priority</option>
-        <option value="medium">Medium Priority</option>
-        <option value="high">High Priority</option>
-      </select>
-      <input
-        type="datetime-local"
-        value={dueDate}
-        onChange={(e) => setDueDate(e.target.value)}
-        className="w-full p-2 border border-gray-300 rounded"
-      />
-      <button
-        type="submit"
-        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-      >
-        Create Task
-      </button>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Title */}
+        <div className="md:col-span-2">
+          <Label
+            htmlFor="title"
+            className="text-sm font-medium text-slate-700 mb-2 flex items-center"
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            Task Title
+          </Label>
+          <Input
+            id="title"
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Enter task title..."
+            required
+            className="border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+
+        {/* Description */}
+        <div className="md:col-span-2">
+          <Label
+            htmlFor="description"
+            className="text-sm font-medium text-slate-700 mb-2 block"
+          >
+            Description
+          </Label>
+          <Textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Add task description..."
+            className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 min-h-[100px]"
+          />
+        </div>
+
+        {/* Status */}
+        <div>
+          <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center">
+            <Clock className="w-4 h-4 mr-2" />
+            Status
+          </Label>
+          <Select
+            value={status}
+            onValueChange={(value: any) => setStatus(value)}
+          >
+            <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-gray-200">
+              <SelectItem value="pending">📋 Pending</SelectItem>
+              <SelectItem value="in_progress">⚡ In Progress</SelectItem>
+              <SelectItem value="completed">✅ Completed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Priority */}
+        <div>
+          <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center">
+            <Flag className="w-4 h-4 mr-2" />
+            Priority
+          </Label>
+          <Select
+            value={priority}
+            onValueChange={(value: any) => setPriority(value)}
+          >
+            <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-gray-200">
+              <SelectItem value="low">🟢 Low Priority</SelectItem>
+              <SelectItem value="medium">🟡 Medium Priority</SelectItem>
+              <SelectItem value="high">🔴 High Priority</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Due Date */}
+        <div className="md:col-span-2">
+          <Label
+            htmlFor="dueDate"
+            className="text-sm font-medium text-slate-700 mb-2 flex items-center"
+          >
+            <Calendar className="w-4 h-4 mr-2" />
+            Due Date
+          </Label>
+          <Input
+            id="dueDate"
+            type="datetime-local"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            className="border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end pt-4 border-t border-slate-200">
+        <Button
+          type="submit"
+          disabled={isSubmitting}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 shadow-lg hover:shadow-xl transition-all duration-200"
+        >
+          {isSubmitting ? 'Creating...' : 'Create Task'}
+        </Button>
+      </div>
     </form>
   );
 }
