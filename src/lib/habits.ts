@@ -135,30 +135,36 @@ export async function fetchHabitEvents(habitId: string): Promise<HabitEvent[]> {
 export async function toggleHabitEvent(
   habitId: string,
   eventDate: string,
-  note: string | null,
-): Promise<HabitEvent> {
+  note?: string,
+) {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from('habit_events')
-    .upsert([{ habit_id: habitId, event_date: eventDate, note }], {
-      onConflict: 'habit_id,event_date', // Pass as a single string, not an array
-    })
-    .select()
-    .single();
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession();
+
+  if (sessionError || !session) {
+    throw new Error('Not authenticated');
+  }
+  const userId = session.user.id;
+
+  const { data, error } = await supabase.from('habit_events').upsert(
+    {
+      habit_id: habitId,
+      event_date: eventDate,
+      user_id: userId,
+      note,
+    },
+    {
+      onConflict: 'habit_id,event_date', // ✅ string, not string[]
+    },
+  );
 
   if (error) {
-    console.error(
-      `Error occurred in toggleHabitEvent for habitId: ${habitId} and eventDate: ${eventDate}`,
-      error,
-    );
-    throw new Error(`Failed to toggle habit event: ${error.message}`);
+    throw error;
   }
 
-  if (!data || typeof data !== 'object') {
-    throw new Error('Invalid habit event data returned from Supabase');
-  }
-
-  return data as HabitEvent;
+  return data;
 }
 
 export async function fetchHabitDetails(habitId: string): Promise<Habit> {
