@@ -141,7 +141,7 @@ export default function HabitForm({
             <SelectTrigger className="border-slate-300 focus:border-green-500 focus:ring-green-500">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-gray-200">
               <SelectItem value="daily">📅 Daily</SelectItem>
               <SelectItem value="weekly">📊 Weekly</SelectItem>
               <SelectItem value="monthly">📈 Monthly</SelectItem>
