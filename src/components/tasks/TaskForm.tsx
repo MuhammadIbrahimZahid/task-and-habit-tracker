@@ -15,7 +15,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Calendar, Clock, Flag, FileText } from 'lucide-react';
+import {
+  Calendar,
+  Clock,
+  Flag,
+  FileText,
+  Loader2,
+  AlertCircle,
+} from 'lucide-react';
 
 type TaskFormProps = {
   userId: string;
@@ -31,10 +38,12 @@ export default function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
   );
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
 
     try {
       await createTask({
@@ -57,6 +66,7 @@ export default function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
       if (onTaskCreated) onTaskCreated();
     } catch (error) {
       console.error('Error creating task:', error);
+      setError('Failed to create task. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -64,6 +74,14 @@ export default function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Error Message */}
+      {error && (
+        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span className="text-sm">{error}</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Title */}
         <div className="md:col-span-2">
@@ -71,8 +89,9 @@ export default function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
             htmlFor="title"
             className="text-sm font-medium text-slate-700 mb-2 flex items-center"
           >
-            <FileText className="w-4 h-4 mr-2" />
+            <FileText className="w-4 h-4 mr-2 flex-shrink-0" />
             Task Title
+            <span className="text-red-500 ml-1">*</span>
           </Label>
           <Input
             id="title"
@@ -81,7 +100,9 @@ export default function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Enter task title..."
             required
-            className="border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+            disabled={isSubmitting}
+            className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-describedby="title-error"
           />
         </div>
 
@@ -98,24 +119,26 @@ export default function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Add task description..."
-            className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 min-h-[100px]"
+            disabled={isSubmitting}
+            className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 min-h-[100px] disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
 
         {/* Status */}
         <div>
           <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center">
-            <Clock className="w-4 h-4 mr-2" />
+            <Clock className="w-4 h-4 mr-2 flex-shrink-0" />
             Status
           </Label>
           <Select
             value={status}
             onValueChange={(value: any) => setStatus(value)}
+            disabled={isSubmitting}
           >
-            <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500">
+            <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="bg-gray-200">
+            <SelectContent className="bg-white border border-slate-200 shadow-lg">
               <SelectItem value="pending">📋 Pending</SelectItem>
               <SelectItem value="in_progress">⚡ In Progress</SelectItem>
               <SelectItem value="completed">✅ Completed</SelectItem>
@@ -126,17 +149,18 @@ export default function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
         {/* Priority */}
         <div>
           <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center">
-            <Flag className="w-4 h-4 mr-2" />
+            <Flag className="w-4 h-4 mr-2 flex-shrink-0" />
             Priority
           </Label>
           <Select
             value={priority}
             onValueChange={(value: any) => setPriority(value)}
+            disabled={isSubmitting}
           >
-            <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500">
+            <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="bg-gray-200">
+            <SelectContent className="bg-white border border-slate-200 shadow-lg">
               <SelectItem value="low">🟢 Low Priority</SelectItem>
               <SelectItem value="medium">🟡 Medium Priority</SelectItem>
               <SelectItem value="high">🔴 High Priority</SelectItem>
@@ -150,7 +174,7 @@ export default function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
             htmlFor="dueDate"
             className="text-sm font-medium text-slate-700 mb-2 flex items-center"
           >
-            <Calendar className="w-4 h-4 mr-2" />
+            <Calendar className="w-4 h-4 mr-2 flex-shrink-0" />
             Due Date
           </Label>
           <Input
@@ -158,18 +182,26 @@ export default function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
             type="datetime-local"
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
-            className="border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+            disabled={isSubmitting}
+            className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
       </div>
 
-      <div className="flex justify-end pt-4 border-t border-slate-200">
+      <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-slate-200">
         <Button
           type="submit"
-          disabled={isSubmitting}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 shadow-lg hover:shadow-xl transition-all duration-200"
+          disabled={isSubmitting || !title.trim()}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
         >
-          {isSubmitting ? 'Creating...' : 'Create Task'}
+          {isSubmitting ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin flex-shrink-0" />
+              Creating...
+            </>
+          ) : (
+            'Create Task'
+          )}
         </Button>
       </div>
     </form>

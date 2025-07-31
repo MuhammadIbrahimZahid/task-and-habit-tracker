@@ -6,7 +6,7 @@ import type { Habit } from '@/types/habit';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Trash2, Target, Eye } from 'lucide-react';
+import { Trash2, Target, Eye, Loader2, AlertCircle, Edit3 } from 'lucide-react';
 
 type HabitListProps = {
   userId: string;
@@ -32,16 +32,17 @@ export default function HabitList({
   onEdit,
 }: HabitListProps) {
   const [habits, setHabits] = useState<Habit[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingHabitId, setDeletingHabitId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadHabits = async () => {
       setIsLoading(true);
+      setError(null);
       try {
         const data = await fetchHabits(userId);
         setHabits(data);
-        setError(null);
       } catch (error) {
         setError('Failed to load habits. Please try again later.');
         console.error('Error fetching habits:', error);
@@ -54,21 +55,47 @@ export default function HabitList({
   }, [userId, refreshKey]);
 
   const handleDelete = async (habitId: string) => {
-    if (isLoading) return;
-    setIsLoading(true);
+    if (!confirm('Are you sure you want to delete this habit?')) return;
+
+    setDeletingHabitId(habitId);
     try {
       await deleteHabit(habitId);
       setHabits((prev) => prev.filter((habit) => habit.id !== habitId));
-      setError(null);
     } catch (error) {
       setError('Failed to delete habit. Please try again later.');
       console.error('Error deleting habit:', error);
     } finally {
-      setIsLoading(false);
+      setDeletingHabitId(null);
     }
   };
 
   const activeHabits = habits.filter((habit) => habit.is_active);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-slate-600 mb-4" />
+        <p className="text-slate-600 font-medium">Loading habits...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 mb-4">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span className="text-sm">{error}</span>
+        </div>
+        <Button
+          onClick={() => window.location.reload()}
+          className="bg-green-600 hover:bg-green-700 text-white"
+        >
+          Try Again
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -85,23 +112,8 @@ export default function HabitList({
         </div>
       )}
 
-      {/* Error State */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-          <p className="text-red-600 text-sm">{error}</p>
-        </div>
-      )}
-
-      {/* Loading State */}
-      {isLoading && (
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
-          <p className="text-slate-500 mt-2">Loading habits...</p>
-        </div>
-      )}
-
       {/* Empty State */}
-      {!isLoading && activeHabits.length === 0 && !error && (
+      {activeHabits.length === 0 && (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">🎯</div>
           <h3 className="text-lg font-medium text-slate-600 mb-2">
@@ -114,7 +126,7 @@ export default function HabitList({
       )}
 
       {/* Habits Grid */}
-      {!isLoading && activeHabits.length > 0 && (
+      {activeHabits.length > 0 && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {activeHabits.map((habit) => (
             <Card
@@ -139,24 +151,11 @@ export default function HabitList({
                         e.stopPropagation();
                         if (onEdit) onEdit(habit);
                       }}
-                      className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 p-1 h-auto"
-                      disabled={isLoading}
-                      aria-label="Edit Habit"
+                      className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 p-1 h-auto transition-colors duration-200"
+                      disabled={deletingHabitId === habit.id}
+                      aria-label={`Edit habit: ${habit.name}`}
                     >
-                      <svg
-                        width="16"
-                        height="16"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M16.474 5.474a2.121 2.121 0 1 1 3 3L7.5 20.448l-4 1 1-4 12.974-12.974Z"
-                        />
-                      </svg>
+                      <Edit3 className="w-4 h-4" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -165,11 +164,15 @@ export default function HabitList({
                         e.stopPropagation();
                         handleDelete(habit.id);
                       }}
-                      className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1 h-auto"
-                      disabled={isLoading}
-                      aria-label="Delete Habit"
+                      className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1 h-auto transition-colors duration-200"
+                      disabled={deletingHabitId === habit.id}
+                      aria-label={`Delete habit: ${habit.name}`}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      {deletingHabitId === habit.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -186,7 +189,7 @@ export default function HabitList({
                     variant="outline"
                     className="bg-slate-50 text-slate-700 border-slate-200"
                   >
-                    <Target className="w-3 h-3 mr-1" />
+                    <Target className="w-3 h-3 mr-1 flex-shrink-0" />
                     {habit.goal_target}
                   </Badge>
                 </div>
@@ -210,9 +213,10 @@ export default function HabitList({
                       e.stopPropagation();
                       if (onSelect) onSelect(habit.id);
                     }}
-                    className="text-xs h-7 px-2"
+                    className="text-xs h-7 px-2 transition-all duration-200 hover:bg-green-50 hover:border-green-200"
+                    disabled={deletingHabitId === habit.id}
                   >
-                    <Eye className="w-3 h-3 mr-1" />
+                    <Eye className="w-3 h-3 mr-1 flex-shrink-0" />
                     View
                   </Button>
                 </div>
