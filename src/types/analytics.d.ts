@@ -35,11 +35,9 @@ export interface AnalyticsSummary {
   average_completion_rate: number;
   total_current_streaks: number;
   longest_overall_streak: number;
-  most_consistent_habit: {
-    habit_id: string;
-    habit_name: string;
-    completion_rate: number;
-  } | null;
+  most_consistent_habit_id: string | null;
+  most_consistent_habit_name: string | null;
+  most_consistent_habit_rate: number | null;
 }
 
 export interface ChartDataPoint {
