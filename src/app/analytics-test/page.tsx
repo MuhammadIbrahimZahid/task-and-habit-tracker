@@ -149,7 +149,9 @@ export default function AnalyticsTestPage() {
               average_completion_rate: 0,
               total_current_streaks: 0,
               longest_overall_streak: 0,
-              most_consistent_habit: null,
+              most_consistent_habit_id: null,
+              most_consistent_habit_name: null,
+              most_consistent_habit_rate: null,
             }
           }
           isLoading={isLoading}
