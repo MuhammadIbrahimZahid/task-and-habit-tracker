@@ -23,7 +23,7 @@ export function AnalyticsSummary({
 }: AnalyticsSummaryProps) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {[...Array(6)].map((_, i) => (
           <Card key={i}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -81,18 +81,18 @@ export function AnalyticsSummary({
     },
     {
       title: 'Most Consistent',
-      value: data.most_consistent_habit?.habit_name || 'None',
+      value: data.most_consistent_habit_name || 'None',
       icon: Award,
       color: 'text-indigo-600',
       bgColor: 'bg-indigo-50',
-      description: data.most_consistent_habit
-        ? `${data.most_consistent_habit.completion_rate.toFixed(1)}% completion`
+      description: data.most_consistent_habit_rate
+        ? `${data.most_consistent_habit_rate.toFixed(1)}% completion`
         : 'No data yet',
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
       {metrics.map((metric, index) => {
         const Icon = metric.icon;
         return (
@@ -106,7 +106,9 @@ export function AnalyticsSummary({
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{metric.value}</div>
+              <div className="text-xl sm:text-2xl font-bold">
+                {metric.value}
+              </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {metric.description}
               </p>

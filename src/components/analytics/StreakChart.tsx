@@ -14,7 +14,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Trophy, TrendingUp } from 'lucide-react';
 import type { StreakData } from '@/types/analytics';
-import { CHART_PRESETS, CHART_STYLES, TOOLTIP_STYLES, formatChartValue } from '@/lib/chart-utils';
+import {
+  CHART_PRESETS,
+  CHART_STYLES,
+  TOOLTIP_STYLES,
+  formatChartValue,
+} from '@/lib/chart-utils';
 
 interface StreakChartProps {
   data: StreakData[];
@@ -135,15 +140,42 @@ export function StreakChart({ data, isLoading = false }: StreakChartProps) {
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={chartData}
-              margin={CHART_PRESETS.streakChart.margins}
+              margin={{
+                top: 20,
+                right:
+                  typeof window !== 'undefined' && window.innerWidth < 768
+                    ? 10
+                    : 30,
+                left:
+                  typeof window !== 'undefined' && window.innerWidth < 768
+                    ? 10
+                    : 20,
+                bottom: 5,
+              }}
             >
-              <CartesianGrid strokeDasharray={CHART_STYLES.grid.strokeDasharray} opacity={CHART_STYLES.grid.opacity} />
+              <CartesianGrid
+                strokeDasharray={CHART_STYLES.grid.strokeDasharray}
+                opacity={CHART_STYLES.grid.opacity}
+              />
               <XAxis
                 dataKey="name"
                 tick={{ fontSize: CHART_STYLES.axis.fontSize }}
                 angle={-45}
                 textAnchor="end"
                 height={80}
+                interval={0}
+                tickFormatter={(value) => {
+                  // Truncate long habit names for mobile
+                  if (
+                    typeof window !== 'undefined' &&
+                    window.innerWidth < 768
+                  ) {
+                    return value.length > 8
+                      ? value.substring(0, 8) + '...'
+                      : value;
+                  }
+                  return value;
+                }}
               />
               <YAxis
                 domain={[0, maxStreak]}

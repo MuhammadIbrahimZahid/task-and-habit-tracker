@@ -596,18 +596,18 @@ export default function DashboardPage() {
         )}
 
         {activeSlice === 'analytics' && (
-          <div className="max-w-6xl mx-auto">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
+            <div className="flex flex-col gap-4 mb-6 sm:mb-8">
               <div>
-                <h1 className="text-3xl md:text-4xl font-bold text-slate-800 mb-2">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-2">
                   Analytics Dashboard
                 </h1>
-                <p className="text-slate-600">
+                <p className="text-slate-600 text-sm sm:text-base">
                   Track your progress and performance insights
                 </p>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
                 <select
                   value={selectedPeriod}
                   onChange={(e) =>
@@ -615,32 +615,34 @@ export default function DashboardPage() {
                       e.target.value as 'week' | 'month' | 'year',
                     )
                   }
-                  className="px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  className="px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base"
                 >
                   <option value="week">This Week</option>
                   <option value="month">This Month</option>
                   <option value="year">This Year</option>
                 </select>
-                <button
-                  onClick={handleRefreshAnalytics}
-                  disabled={analyticsLoading}
-                  className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white px-4 py-2 rounded-lg shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
-                  aria-label="Refresh analytics data"
-                >
-                  <RefreshCw
-                    className={`w-4 h-4 ${analyticsLoading ? 'animate-spin' : ''}`}
-                  />
-                  <span className="hidden md:inline">Refresh</span>
-                </button>
-                <button
-                  onClick={() => handleExportCSV('all')}
-                  disabled={analyticsLoading}
-                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded-lg shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-                  aria-label="Export analytics data to CSV"
-                >
-                  <Download className="w-4 h-4" />
-                  <span className="hidden md:inline">Export CSV</span>
-                </button>
+                <div className="flex gap-2 sm:gap-4">
+                  <button
+                    onClick={handleRefreshAnalytics}
+                    disabled={analyticsLoading}
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white px-3 sm:px-4 py-2 rounded-lg shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 text-sm"
+                    aria-label="Refresh analytics data"
+                  >
+                    <RefreshCw
+                      className={`w-4 h-4 ${analyticsLoading ? 'animate-spin' : ''}`}
+                    />
+                    <span className="hidden sm:inline">Refresh</span>
+                  </button>
+                  <button
+                    onClick={() => handleExportCSV('all')}
+                    disabled={analyticsLoading}
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-3 sm:px-4 py-2 rounded-lg shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 text-sm"
+                    aria-label="Export analytics data to CSV"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span className="hidden sm:inline">Export CSV</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -661,7 +663,9 @@ export default function DashboardPage() {
                     average_completion_rate: 0,
                     total_current_streaks: 0,
                     longest_overall_streak: 0,
-                    most_consistent_habit: null,
+                    most_consistent_habit_id: null,
+                    most_consistent_habit_name: null,
+                    most_consistent_habit_rate: null,
                   }
                 }
                 isLoading={analyticsLoading}
@@ -669,14 +673,14 @@ export default function DashboardPage() {
             </div>
 
             {/* Charts Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
               {/* Streak Chart */}
-              <div>
+              <div className="min-w-0">
                 <StreakChart data={streaksData} isLoading={analyticsLoading} />
               </div>
 
               {/* Completion Rate Chart */}
-              <div>
+              <div className="min-w-0">
                 <CompletionRateChart
                   data={completionData}
                   isLoading={analyticsLoading}
