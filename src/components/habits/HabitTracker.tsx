@@ -43,9 +43,13 @@ const goalTypeConfig = {
 
 type HabitTrackerProps = {
   habitId: string;
+  onEventToggle?: () => void;
 };
 
-export default function HabitTracker({ habitId }: HabitTrackerProps) {
+export default function HabitTracker({
+  habitId,
+  onEventToggle,
+}: HabitTrackerProps) {
   const [habit, setHabit] = useState<Habit | null>(null);
   const [events, setEvents] = useState<HabitEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -102,6 +106,8 @@ export default function HabitTracker({ habitId }: HabitTrackerProps) {
           ];
         }
       });
+      // Notify parent component that a habit event was toggled
+      onEventToggle?.();
     } finally {
       setIsEventLoading(false);
     }
