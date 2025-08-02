@@ -31,14 +31,17 @@ export async function GET(request: NextRequest) {
 
     if (!summaryResult || summaryResult.length === 0) {
       // Return empty summary if no data
-      return NextResponse.json({
+      const emptySummary: AnalyticsSummary = {
         total_habits: 0,
         active_habits: 0,
         average_completion_rate: 0,
         total_current_streaks: 0,
         longest_overall_streak: 0,
-        most_consistent_habit: null,
-      });
+        most_consistent_habit_id: null,
+        most_consistent_habit_name: null,
+        most_consistent_habit_rate: null,
+      };
+      return NextResponse.json(emptySummary);
     }
 
     const summary = summaryResult[0];
@@ -47,16 +50,14 @@ export async function GET(request: NextRequest) {
       total_habits: parseInt(summary.total_habits) || 0,
       active_habits: parseInt(summary.active_habits) || 0,
       average_completion_rate: parseFloat(summary.average_completion_rate) || 0,
-      total_current_streaks: summary.total_current_streaks || 0,
-      longest_overall_streak: summary.longest_overall_streak || 0,
-      most_consistent_habit: summary.most_consistent_habit_id
-        ? {
-            habit_id: summary.most_consistent_habit_id,
-            habit_name: summary.most_consistent_habit_name || '',
-            completion_rate:
-              parseFloat(summary.most_consistent_habit_rate) || 0,
-          }
-        : null,
+      total_current_streaks: parseInt(summary.total_current_streaks) || 0,
+      longest_overall_streak: parseInt(summary.longest_overall_streak) || 0,
+      most_consistent_habit_id: summary.most_consistent_habit_id || null,
+      most_consistent_habit_name: summary.most_consistent_habit_name || null,
+      most_consistent_habit_rate:
+        summary.most_consistent_habit_rate !== null
+          ? parseFloat(summary.most_consistent_habit_rate)
+          : null,
     };
 
     return NextResponse.json(analyticsSummary);
