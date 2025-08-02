@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
     // Get query parameters
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'all'; // all, streaks, completion-rates, summary
-    const period = searchParams.get('period') || 'month';
+    const period =
+      (searchParams.get('period') as 'week' | 'month' | 'year') || 'month'; // Ensuring period type is strictly one of these
 
     let csvData = '';
     let filename = '';
@@ -142,6 +143,8 @@ export async function GET(request: NextRequest) {
                 completed_days: completionDataItem.completed_days || 0,
                 total_days: completionDataItem.total_days || 0,
                 period: period,
+                period_start: getPeriodStartDate(period), // Add period_start
+                period_end: new Date().toISOString().split('T')[0], // Add period_end
               });
             }
           }
@@ -281,7 +284,7 @@ function generateSummaryCSV(summaryData: AnalyticsSummary): string {
     .join('\n');
 }
 
-function getPeriodStartDate(period: string): string {
+function getPeriodStartDate(period: 'week' | 'month' | 'year'): string {
   const today = new Date();
 
   switch (period) {
