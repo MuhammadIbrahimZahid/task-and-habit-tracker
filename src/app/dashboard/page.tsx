@@ -16,17 +16,13 @@ import {
   Eye,
   Loader2,
   BarChart3,
-  RefreshCw,
-  Download,
 } from 'lucide-react';
 import HabitForm from '@/components/habits/HabitForm';
 import HabitList from '@/components/habits/HabitList';
 import HabitDetails from '@/components/habits/HabitDetails';
 import type { Habit } from '@/types/habit';
 import HabitTracker from '@/components/habits/HabitTracker';
-import { StreakChart } from '@/components/analytics/StreakChart';
-import { CompletionRateChart } from '@/components/analytics/CompletionRateChart';
-import { AnalyticsSummary } from '@/components/analytics/AnalyticsSummary';
+import ModernAnalyticsDashboard from '@/components/analytics/ModernAnalyticsDashboard';
 import type {
   StreakData,
   CompletionRateData,
@@ -107,7 +103,6 @@ export default function DashboardPage() {
           console.error('Error loading initial analytics:', error);
         }
       };
-
       loadInitialAnalytics();
     }
   }, [session?.user?.id]);
@@ -132,6 +127,7 @@ export default function DashboardPage() {
     setHabitsUpdatedAt(Date.now());
     setShowHabitForm(false);
   };
+
   const onHabitUpdated = () => {
     setHabitsUpdatedAt(Date.now());
     setEditingHabit(null);
@@ -152,10 +148,8 @@ export default function DashboardPage() {
   // Analytics functions
   const fetchAnalyticsData = async () => {
     if (activeSlice !== 'analytics') return;
-
     setAnalyticsLoading(true);
     setAnalyticsError(null);
-
     try {
       const [streaksResponse, completionResponse, summaryResponse] =
         await Promise.all([
@@ -202,11 +196,9 @@ export default function DashboardPage() {
     try {
       const url = `/api/analytics/export/csv?type=${type}&period=${selectedPeriod}`;
       const response = await fetch(url);
-
       if (!response.ok) {
         throw new Error('Failed to export data');
       }
-
       const blob = await response.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -457,6 +449,7 @@ export default function DashboardPage() {
                 <span className="md:hidden">Add Habit</span>
               </button>
             </div>
+
             {/* Habit Form - Collapsible (Create) */}
             {showHabitForm && !editingHabit && (
               <div className="mb-8 bg-white rounded-xl shadow-lg border border-slate-200 p-6 animate-in slide-in-from-top-2 duration-300">
@@ -478,6 +471,7 @@ export default function DashboardPage() {
                 />
               </div>
             )}
+
             {/* Habit Form - Edit Mode */}
             {editingHabit && (
               <div className="mb-8 bg-white rounded-xl shadow-lg border border-slate-200 p-6 animate-in slide-in-from-top-2 duration-300">
@@ -596,98 +590,17 @@ export default function DashboardPage() {
         )}
 
         {activeSlice === 'analytics' && (
-          <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            {/* Header */}
-            <div className="flex flex-col gap-4 mb-6 sm:mb-8">
-              <div>
-                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-2">
-                  Analytics Dashboard
-                </h1>
-                <p className="text-slate-600 text-sm sm:text-base">
-                  Track your progress and performance insights
-                </p>
-              </div>
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
-                <select
-                  value={selectedPeriod}
-                  onChange={(e) =>
-                    setSelectedPeriod(
-                      e.target.value as 'week' | 'month' | 'year',
-                    )
-                  }
-                  className="px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base"
-                >
-                  <option value="week">This Week</option>
-                  <option value="month">This Month</option>
-                  <option value="year">This Year</option>
-                </select>
-                <div className="flex gap-2 sm:gap-4">
-                  <button
-                    onClick={handleRefreshAnalytics}
-                    disabled={analyticsLoading}
-                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white px-3 sm:px-4 py-2 rounded-lg shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 text-sm"
-                    aria-label="Refresh analytics data"
-                  >
-                    <RefreshCw
-                      className={`w-4 h-4 ${analyticsLoading ? 'animate-spin' : ''}`}
-                    />
-                    <span className="hidden sm:inline">Refresh</span>
-                  </button>
-                  <button
-                    onClick={() => handleExportCSV('all')}
-                    disabled={analyticsLoading}
-                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-3 sm:px-4 py-2 rounded-lg shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 text-sm"
-                    aria-label="Export analytics data to CSV"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span className="hidden sm:inline">Export CSV</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Error State */}
-            {analyticsError && (
-              <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-700">Error: {analyticsError}</p>
-              </div>
-            )}
-
-            {/* Analytics Summary */}
-            <div className="mb-8">
-              <AnalyticsSummary
-                data={
-                  summaryData || {
-                    total_habits: 0,
-                    active_habits: 0,
-                    average_completion_rate: 0,
-                    total_current_streaks: 0,
-                    longest_overall_streak: 0,
-                    most_consistent_habit_id: null,
-                    most_consistent_habit_name: null,
-                    most_consistent_habit_rate: null,
-                  }
-                }
-                isLoading={analyticsLoading}
-              />
-            </div>
-
-            {/* Charts Grid */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
-              {/* Streak Chart */}
-              <div className="min-w-0">
-                <StreakChart data={streaksData} isLoading={analyticsLoading} />
-              </div>
-
-              {/* Completion Rate Chart */}
-              <div className="min-w-0">
-                <CompletionRateChart
-                  data={completionData}
-                  isLoading={analyticsLoading}
-                />
-              </div>
-            </div>
-          </div>
+          <ModernAnalyticsDashboard
+            summaryData={summaryData}
+            selectedPeriod={selectedPeriod}
+            onPeriodChange={setSelectedPeriod}
+            onRefresh={handleRefreshAnalytics}
+            onExport={() => handleExportCSV('all')}
+            analyticsLoading={analyticsLoading}
+            analyticsError={analyticsError}
+            streaksData={streaksData}
+            completionData={completionData}
+          />
         )}
       </main>
     </div>
