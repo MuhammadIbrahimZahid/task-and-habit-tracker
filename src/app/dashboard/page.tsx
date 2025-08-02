@@ -597,7 +597,14 @@ export default function DashboardPage() {
                       />
                     </div>
                     {/* Habit Tracker */}
-                    <HabitTracker habitId={selectedHabitId} />
+                    <HabitTracker
+                      habitId={selectedHabitId}
+                      onEventToggle={() => {
+                        if (session?.user?.id) {
+                          fetchAnalyticsData();
+                        }
+                      }}
+                    />
                   </div>
                 )
               )}
