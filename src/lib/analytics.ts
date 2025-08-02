@@ -238,7 +238,9 @@ export function calculateAnalyticsSummary(
     average_completion_rate: Math.round(averageCompletionRate * 100) / 100,
     total_current_streaks: totalCurrentStreaks,
     longest_overall_streak: longestOverallStreak,
-    most_consistent_habit: mostConsistentHabit,
+    most_consistent_habit_id: mostConsistentHabit?.habit_id ?? null,
+    most_consistent_habit_name: mostConsistentHabit?.habit_name ?? null,
+    most_consistent_habit_rate: mostConsistentHabit?.completion_rate ?? null,
   };
 }
 
