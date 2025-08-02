@@ -84,7 +84,7 @@ export default function DashboardPage() {
 
   // Fetch analytics data when analytics tab is active or when period changes
   useEffect(() => {
-    if (activeSlice === 'analytics') {
+    if (activeSlice === 'analytics' && session?.user?.id) {
       fetchAnalyticsData();
     }
   }, [activeSlice, selectedPeriod]);
@@ -126,12 +126,28 @@ export default function DashboardPage() {
   const onHabitCreated = () => {
     setHabitsUpdatedAt(Date.now());
     setShowHabitForm(false);
+    // Refresh analytics data when habits are modified
+    if (session?.user?.id) {
+      fetchAnalyticsData();
+    }
   };
 
   const onHabitUpdated = () => {
     setHabitsUpdatedAt(Date.now());
     setEditingHabit(null);
     setShowHabitForm(false);
+    // Refresh analytics data when habits are modified
+    if (session?.user?.id) {
+      fetchAnalyticsData();
+    }
+  };
+
+  const onHabitDeleted = () => {
+    setHabitsUpdatedAt(Date.now());
+    // Refresh analytics data when habits are deleted
+    if (session?.user?.id) {
+      fetchAnalyticsData();
+    }
   };
 
   // Handle habit selection and view switching
@@ -147,7 +163,6 @@ export default function DashboardPage() {
 
   // Analytics functions
   const fetchAnalyticsData = async () => {
-    if (activeSlice !== 'analytics') return;
     setAnalyticsLoading(true);
     setAnalyticsError(null);
     try {
@@ -550,6 +565,7 @@ export default function DashboardPage() {
                     setEditingHabit(habit);
                     setShowHabitForm(false);
                   }}
+                  onDelete={onHabitDeleted}
                 />
               ) : (
                 // Detail View

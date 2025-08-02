@@ -19,6 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { StreakChart } from '@/components/analytics/StreakChart';
+import { CompletionRateChart } from '@/components/analytics/CompletionRateChart';
 
 interface AnalyticsSummaryData {
   total_habits: number;
@@ -202,138 +204,18 @@ export default function ModernAnalyticsDashboard({
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-        {/* Streaks Chart */}
-        <Card className="bg-white shadow-lg border border-slate-200">
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-slate-100">
-                  <TrendingUp className="w-5 h-5 text-orange-600" />
-                </div>
-                <CardTitle className="text-xl">Current Streaks</CardTitle>
-              </div>
-              <div className="text-sm text-slate-500">
-                {streaksData.length} habits
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {analyticsLoading ? (
-              <div className="space-y-4">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="flex items-center gap-4">
-                    <div className="h-4 w-4 bg-slate-200 rounded animate-pulse" />
-                    <div className="h-4 flex-1 bg-slate-200 rounded animate-pulse" />
-                    <div className="h-4 w-12 bg-slate-200 rounded animate-pulse" />
-                  </div>
-                ))}
-              </div>
-            ) : streaksData.length > 0 ? (
-              <div className="space-y-4">
-                {streaksData.slice(0, 5).map((streak, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-orange-500" />
-                      <span className="font-medium text-slate-700">
-                        {streak.habit_name}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-orange-500" />
-                      <span className="font-bold text-orange-600">
-                        {streak.current_streak}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
-                  <TrendingUp className="w-8 h-8 text-slate-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-slate-700 mb-2">
-                  No streak data available
-                </h3>
-                <p className="text-slate-500">
-                  Complete some habits to see your streaks!
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Streak Chart */}
+        <div className="min-w-0">
+          <StreakChart data={streaksData} isLoading={analyticsLoading} />
+        </div>
 
-        {/* Completion Rates Chart */}
-        <Card className="bg-white shadow-lg border border-slate-200">
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-slate-100">
-                  <Activity className="w-5 h-5 text-purple-600" />
-                </div>
-                <CardTitle className="text-xl">Completion Rates</CardTitle>
-              </div>
-              <div className="text-sm text-slate-500">
-                {selectedPeriod === 'week'
-                  ? 'This Week'
-                  : selectedPeriod === 'month'
-                    ? 'This Month'
-                    : 'This Year'}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {analyticsLoading ? (
-              <div className="space-y-4">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="space-y-2">
-                    <div className="flex justify-between">
-                      <div className="h-4 w-24 bg-slate-200 rounded animate-pulse" />
-                      <div className="h-4 w-12 bg-slate-200 rounded animate-pulse" />
-                    </div>
-                    <div className="h-2 bg-slate-200 rounded animate-pulse" />
-                  </div>
-                ))}
-              </div>
-            ) : completionData.length > 0 ? (
-              <div className="space-y-4">
-                {completionData.slice(0, 5).map((completion, index) => (
-                  <div key={index} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-slate-700">
-                        {completion.habit_name}
-                      </span>
-                      <span className="font-bold text-purple-600">
-                        {completion.completion_rate}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-200 rounded-full h-2">
-                      <div
-                        className="bg-purple-600 h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${completion.completion_rate}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
-                  <Activity className="w-8 h-8 text-slate-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-slate-700 mb-2">
-                  No completion data available
-                </h3>
-                <p className="text-slate-500">
-                  Track some habits to see your completion rates!
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Completion Rate Chart */}
+        <div className="min-w-0">
+          <CompletionRateChart
+            data={completionData}
+            isLoading={analyticsLoading}
+          />
+        </div>
       </div>
     </div>
   );

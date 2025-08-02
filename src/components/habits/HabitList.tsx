@@ -15,6 +15,7 @@ type HabitListProps = {
   selectedHabitId?: string | null;
   hideHeading?: boolean;
   onEdit?: (habit: Habit) => void;
+  onDelete?: () => void;
 };
 
 const goalTypeConfig = {
@@ -30,6 +31,7 @@ export default function HabitList({
   selectedHabitId,
   hideHeading = false,
   onEdit,
+  onDelete,
 }: HabitListProps) {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -61,6 +63,7 @@ export default function HabitList({
     try {
       await deleteHabit(habitId);
       setHabits((prev) => prev.filter((habit) => habit.id !== habitId));
+      onDelete?.();
     } catch (error) {
       setError('Failed to delete habit. Please try again later.');
       console.error('Error deleting habit:', error);
