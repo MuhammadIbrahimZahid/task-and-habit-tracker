@@ -15,16 +15,25 @@ import {
   List,
   Eye,
   Loader2,
+  BarChart3,
 } from 'lucide-react';
 import HabitForm from '@/components/habits/HabitForm';
 import HabitList from '@/components/habits/HabitList';
 import HabitDetails from '@/components/habits/HabitDetails';
 import type { Habit } from '@/types/habit';
 import HabitTracker from '@/components/habits/HabitTracker';
+import ModernAnalyticsDashboard from '@/components/analytics/ModernAnalyticsDashboard';
+import type {
+  StreakData,
+  CompletionRateData,
+  AnalyticsSummary as AnalyticsSummaryType,
+} from '@/types/analytics';
 
 export default function DashboardPage() {
   const [session, setSession] = useState<any>(null);
-  const [activeSlice, setActiveSlice] = useState<'tasks' | 'habits'>('tasks');
+  const [activeSlice, setActiveSlice] = useState<
+    'tasks' | 'habits' | 'analytics'
+  >('tasks');
   const [tasksUpdatedAt, setTasksUpdatedAt] = useState(Date.now());
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showHabitForm, setShowHabitForm] = useState(false);
@@ -33,6 +42,21 @@ export default function DashboardPage() {
   const [habitViewMode, setHabitViewMode] = useState<'list' | 'detail'>('list');
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Analytics state
+  const [streaksData, setStreaksData] = useState<StreakData[]>([]);
+  const [completionData, setCompletionData] = useState<CompletionRateData[]>(
+    [],
+  );
+  const [summaryData, setSummaryData] = useState<AnalyticsSummaryType | null>(
+    null,
+  );
+  const [selectedPeriod, setSelectedPeriod] = useState<
+    'week' | 'month' | 'year'
+  >('month');
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+
   const router = useRouter();
 
   useEffect(() => {
@@ -58,6 +82,31 @@ export default function DashboardPage() {
     getSession();
   }, []);
 
+  // Fetch analytics data when analytics tab is active or when period changes
+  useEffect(() => {
+    if (activeSlice === 'analytics') {
+      fetchAnalyticsData();
+    }
+  }, [activeSlice, selectedPeriod]);
+
+  // Load initial analytics data for quick insights
+  useEffect(() => {
+    if (session?.user?.id) {
+      const loadInitialAnalytics = async () => {
+        try {
+          const summaryResponse = await fetch('/api/analytics/summary');
+          if (summaryResponse.ok) {
+            const summaryResult = await summaryResponse.json();
+            setSummaryData(summaryResult);
+          }
+        } catch (error) {
+          console.error('Error loading initial analytics:', error);
+        }
+      };
+      loadInitialAnalytics();
+    }
+  }, [session?.user?.id]);
+
   async function handleSignOut() {
     try {
       await signOut();
@@ -78,6 +127,7 @@ export default function DashboardPage() {
     setHabitsUpdatedAt(Date.now());
     setShowHabitForm(false);
   };
+
   const onHabitUpdated = () => {
     setHabitsUpdatedAt(Date.now());
     setEditingHabit(null);
@@ -93,6 +143,75 @@ export default function DashboardPage() {
   const handleBackToHabitList = () => {
     setHabitViewMode('list');
     setSelectedHabitId(null);
+  };
+
+  // Analytics functions
+  const fetchAnalyticsData = async () => {
+    if (activeSlice !== 'analytics') return;
+    setAnalyticsLoading(true);
+    setAnalyticsError(null);
+    try {
+      const [streaksResponse, completionResponse, summaryResponse] =
+        await Promise.all([
+          fetch('/api/analytics/streaks'),
+          fetch(`/api/analytics/completion-rates?period=${selectedPeriod}`),
+          fetch('/api/analytics/summary'),
+        ]);
+
+      if (
+        !streaksResponse.ok ||
+        !completionResponse.ok ||
+        !summaryResponse.ok
+      ) {
+        throw new Error('Failed to fetch analytics data');
+      }
+
+      const [streaksResult, completionResult, summaryResult] =
+        await Promise.all([
+          streaksResponse.json(),
+          completionResponse.json(),
+          summaryResponse.json(),
+        ]);
+
+      setStreaksData(streaksResult.streaks || []);
+      setCompletionData(completionResult.completionRates || []);
+      setSummaryData(summaryResult);
+    } catch (err) {
+      console.error('Error fetching analytics data:', err);
+      setAnalyticsError(
+        err instanceof Error ? err.message : 'Failed to load analytics',
+      );
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
+  const handleRefreshAnalytics = () => {
+    fetchAnalyticsData();
+  };
+
+  const handleExportCSV = async (
+    type: 'all' | 'streaks' | 'completion-rates' | 'summary' = 'all',
+  ) => {
+    try {
+      const url = `/api/analytics/export/csv?type=${type}&period=${selectedPeriod}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to export data');
+      }
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `analytics-${type}-${selectedPeriod}-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      alert('Failed to export data. Please try again.');
+    }
   };
 
   // Loading state
@@ -154,6 +273,18 @@ export default function DashboardPage() {
             <Repeat className="w-6 h-6 md:mr-2 flex-shrink-0" />
             <span className="hidden md:inline">Habits</span>
           </button>
+          <button
+            className={`flex items-center w-full gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-semibold text-lg md:text-base focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+              activeSlice === 'analytics'
+                ? 'bg-purple-600 text-white shadow-lg focus:ring-purple-500'
+                : 'hover:bg-slate-100 text-slate-700 focus:ring-slate-300'
+            }`}
+            onClick={() => setActiveSlice('analytics')}
+            aria-label="Switch to analytics view"
+          >
+            <BarChart3 className="w-6 h-6 md:mr-2 flex-shrink-0" />
+            <span className="hidden md:inline">Analytics</span>
+          </button>
         </div>
         <div className="flex-1" />
         <button
@@ -212,6 +343,48 @@ export default function DashboardPage() {
                 />
               </div>
             )}
+
+            {/* Quick Analytics Summary */}
+            <div className="mb-6 bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl shadow-lg border border-purple-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-slate-800">
+                  Quick Insights
+                </h3>
+                <button
+                  onClick={() => setActiveSlice('analytics')}
+                  className="text-purple-600 hover:text-purple-700 hover:cursor-pointer text-sm font-medium flex items-center gap-1"
+                >
+                  View Full Analytics
+                  <BarChart3 className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {summaryData?.total_habits || 0}
+                  </div>
+                  <div className="text-sm text-slate-600">Total Habits</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {summaryData?.total_current_streaks || 0}
+                  </div>
+                  <div className="text-sm text-slate-600">Active Streaks</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {summaryData?.average_completion_rate?.toFixed(1) || '0'}%
+                  </div>
+                  <div className="text-sm text-slate-600">Avg Completion</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-600">
+                    {summaryData?.longest_overall_streak || 0}
+                  </div>
+                  <div className="text-sm text-slate-600">Best Streak</div>
+                </div>
+              </div>
+            </div>
 
             {/* Task List */}
             <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
@@ -276,6 +449,7 @@ export default function DashboardPage() {
                 <span className="md:hidden">Add Habit</span>
               </button>
             </div>
+
             {/* Habit Form - Collapsible (Create) */}
             {showHabitForm && !editingHabit && (
               <div className="mb-8 bg-white rounded-xl shadow-lg border border-slate-200 p-6 animate-in slide-in-from-top-2 duration-300">
@@ -297,6 +471,7 @@ export default function DashboardPage() {
                 />
               </div>
             )}
+
             {/* Habit Form - Edit Mode */}
             {editingHabit && (
               <div className="mb-8 bg-white rounded-xl shadow-lg border border-slate-200 p-6 animate-in slide-in-from-top-2 duration-300">
@@ -319,6 +494,49 @@ export default function DashboardPage() {
                 />
               </div>
             )}
+
+            {/* Quick Analytics Summary */}
+            <div className="mb-6 bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl shadow-lg border border-purple-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-slate-800">
+                  Quick Insights
+                </h3>
+                <button
+                  onClick={() => setActiveSlice('analytics')}
+                  className="text-purple-600 hover:text-purple-700 hover:cursor-pointer text-sm font-medium flex items-center gap-1"
+                >
+                  View Full Analytics
+                  <BarChart3 className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {summaryData?.total_habits || 0}
+                  </div>
+                  <div className="text-sm text-slate-600">Total Habits</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {summaryData?.total_current_streaks || 0}
+                  </div>
+                  <div className="text-sm text-slate-600">Active Streaks</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {summaryData?.average_completion_rate?.toFixed(1) || '0'}%
+                  </div>
+                  <div className="text-sm text-slate-600">Avg Completion</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-600">
+                    {summaryData?.longest_overall_streak || 0}
+                  </div>
+                  <div className="text-sm text-slate-600">Best Streak</div>
+                </div>
+              </div>
+            </div>
+
             {/* Habit Content - Toggle between List and Detail views */}
             <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
               {habitViewMode === 'list' ? (
@@ -369,6 +587,20 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+        )}
+
+        {activeSlice === 'analytics' && (
+          <ModernAnalyticsDashboard
+            summaryData={summaryData}
+            selectedPeriod={selectedPeriod}
+            onPeriodChange={setSelectedPeriod}
+            onRefresh={handleRefreshAnalytics}
+            onExport={() => handleExportCSV('all')}
+            analyticsLoading={analyticsLoading}
+            analyticsError={analyticsError}
+            streaksData={streaksData}
+            completionData={completionData}
+          />
         )}
       </main>
     </div>
