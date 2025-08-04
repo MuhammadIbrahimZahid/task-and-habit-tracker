@@ -38,6 +38,8 @@ export default function HabitList({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingHabitId, setDeletingHabitId] = useState<string | null>(null);
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+  const subscriptionRef = useRef<SubscriptionHandle | null>(null);
 
   useEffect(() => {
     const loadHabits = async () => {
