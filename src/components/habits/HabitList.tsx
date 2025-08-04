@@ -59,6 +59,113 @@ export default function HabitList({
     loadHabits();
   }, [userId, refreshKey]);
 
+  // Real-time subscription setup
+  useEffect(() => {
+    let isSubscribed = true;
+    
+    const setupRealtimeSubscription = async () => {
+      try {
+        console.log('🔌 Setting up real-time subscription for habits...');
+        
+        // Use the same pattern as the working debug page
+        const { createClient } = await import('@/utils/supabase/client');
+        const supabase = createClient();
+        
+        const channel = supabase
+          .channel(`habits-${userId}-${Date.now()}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'habits',
+              filter: `user_id=eq.${userId}`,
+            },
+            (payload) => {
+              if (!isSubscribed) return;
+              console.log('📡 INSERT event received:', payload);
+              const newHabit = payload.new as Habit;
+              setHabits((prev) => {
+                // Check if habit already exists to prevent duplicates
+                if (prev.some(habit => habit.id === newHabit.id)) {
+                  console.log('📝 Habit already exists, skipping:', newHabit.name);
+                  return prev;
+                }
+                console.log('📝 Adding new habit to state:', newHabit.name);
+                return [newHabit, ...prev];
+              });
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'habits',
+              filter: `user_id=eq.${userId}`,
+            },
+            (payload) => {
+              if (!isSubscribed) return;
+              console.log('📡 UPDATE event received:', payload);
+              const updatedHabit = payload.new as Habit;
+              
+              // Check if this is a soft delete (deleted_at is set)
+              if (updatedHabit.deleted_at) {
+                console.log('📡 Soft DELETE detected:', updatedHabit.name);
+                setHabits((prev) => {
+                  console.log('📝 Removing soft-deleted habit from state:', updatedHabit.name);
+                  return prev.filter((habit) => habit.id !== updatedHabit.id);
+                });
+              } else {
+                // Regular update
+                setHabits((prev) => {
+                  console.log('📝 Updating habit in state:', updatedHabit.name);
+                  return prev.map((habit) =>
+                    habit.id === updatedHabit.id ? updatedHabit : habit,
+                  );
+                });
+              }
+            }
+          )
+          .subscribe((status) => {
+            if (!isSubscribed) return;
+            console.log('📡 Channel status:', status);
+            setIsRealtimeConnected(status === 'SUBSCRIBED');
+          });
+
+        subscriptionRef.current = {
+          channelName: `habits-${userId}-${Date.now()}`,
+          unsubscribe: async () => {
+            console.log('🧹 Cleaning up real-time subscription for habits');
+            await supabase.removeChannel(channel);
+          },
+          isActive: () => true,
+        };
+
+        setIsRealtimeConnected(true);
+        console.log('✅ Real-time subscription established for habits');
+      } catch (error) {
+        console.error('❌ Failed to setup real-time subscription:', error);
+        setIsRealtimeConnected(false);
+      }
+    };
+
+    if (userId) {
+      setupRealtimeSubscription();
+    }
+
+    // Cleanup subscription on unmount
+    return () => {
+      isSubscribed = false;
+      if (subscriptionRef.current) {
+        console.log('🧹 Cleaning up real-time subscription for habits');
+        subscriptionRef.current.unsubscribe().catch(console.error);
+        subscriptionRef.current = null;
+        setIsRealtimeConnected(false);
+      }
+    };
+  }, [userId]);
+
   const handleDelete = async (habitId: string) => {
     if (!confirm('Are you sure you want to delete this habit?')) return;
 
