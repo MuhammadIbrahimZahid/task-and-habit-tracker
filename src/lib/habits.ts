@@ -24,6 +24,7 @@ export async function fetchHabits(userId: string): Promise<Habit[]> {
     .from('habits')
     .select('*')
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -102,8 +103,10 @@ export async function deleteHabit(habitId: string) {
   try {
     const { data, error } = await supabase
       .from('habits')
-      .delete()
-      .eq('id', habitId);
+      .update({ deleted_at: new Date() })
+      .eq('id', habitId)
+      .select()
+      .single();
 
     if (error) throw error;
     return data;

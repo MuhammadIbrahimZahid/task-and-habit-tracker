@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { fetchHabits, deleteHabit } from '@/lib/habits';
 import type { Habit } from '@/types/habit';
+import type { SubscriptionHandle } from '@/lib/realtime-subscriptions';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';

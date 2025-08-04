@@ -1,8 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { fetchTasks, deleteTask, updateTask } from '@/lib/tasks';
+import { taskToasts } from '@/lib/toast';
+import { subscribeToTasks } from '@/lib/realtime-subscriptions';
 import type { Task } from '@/types/task';
+import type { SubscriptionHandle } from '@/lib/realtime-subscriptions';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -75,6 +78,8 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
   const [error, setError] = useState<string | null>(null);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+  const subscriptionRef = useRef<SubscriptionHandle | null>(null);
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -94,6 +99,115 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
     loadTasks();
   }, [userId, refreshKey]);
 
+  // Real-time subscription setup
+  useEffect(() => {
+    let isSubscribed = true;
+
+    const setupRealtimeSubscription = async () => {
+      try {
+        console.log('🔌 Setting up real-time subscription for tasks...');
+
+        // Use the same pattern as the working debug page
+        const { createClient } = await import('@/utils/supabase/client');
+        const supabase = createClient();
+
+        const channel = supabase
+          .channel(`tasks-${userId}-${Date.now()}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'tasks',
+              filter: `user_id=eq.${userId}`,
+            },
+            (payload) => {
+              if (!isSubscribed) return;
+              console.log('📡 INSERT event received:', payload);
+              const newTask = payload.new as Task;
+              setTasks((prev) => {
+                // Check if task already exists to prevent duplicates
+                if (prev.some((task) => task.id === newTask.id)) {
+                  console.log(
+                    '📝 Task already exists, skipping:',
+                    newTask.title,
+                  );
+                  return prev;
+                }
+                console.log('📝 Adding new task to state:', newTask.title);
+                return [newTask, ...prev];
+              });
+            },
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'tasks',
+              filter: `user_id=eq.${userId}`,
+            },
+            (payload) => {
+              if (!isSubscribed) return;
+              console.log('📡 UPDATE event received:', payload);
+              const updatedTask = payload.new as Task;
+              
+              // Check if this is a soft delete (deleted_at is set)
+              if (updatedTask.deleted_at) {
+                console.log('📡 Soft DELETE detected:', updatedTask.title);
+                setTasks((prev) => {
+                  console.log('📝 Removing soft-deleted task from state:', updatedTask.title);
+                  return prev.filter((task) => task.id !== updatedTask.id);
+                });
+              } else {
+                // Regular update
+                setTasks((prev) => {
+                  console.log('📝 Updating task in state:', updatedTask.title);
+                  return prev.map((task) =>
+                    task.id === updatedTask.id ? updatedTask : task,
+                  );
+                });
+              }
+            },
+          )
+          .subscribe((status) => {
+            if (!isSubscribed) return;
+            console.log('📡 Channel status:', status);
+            setIsRealtimeConnected(status === 'SUBSCRIBED');
+          });
+
+        subscriptionRef.current = {
+          channelName: `tasks-${userId}-${Date.now()}`,
+          unsubscribe: async () => {
+            console.log('🧹 Cleaning up real-time subscription for tasks');
+            await supabase.removeChannel(channel);
+          },
+          isActive: () => true,
+        };
+        setIsRealtimeConnected(true);
+        console.log('✅ Real-time subscription established for tasks');
+      } catch (error) {
+        console.error('❌ Failed to setup real-time subscription:', error);
+        setIsRealtimeConnected(false);
+      }
+    };
+
+    if (userId) {
+      setupRealtimeSubscription();
+    }
+
+    // Cleanup subscription on unmount
+    return () => {
+      isSubscribed = false;
+      if (subscriptionRef.current) {
+        console.log('🧹 Cleaning up real-time subscription for tasks');
+        subscriptionRef.current.unsubscribe().catch(console.error);
+        subscriptionRef.current = null;
+        setIsRealtimeConnected(false);
+      }
+    };
+  }, [userId]);
+
   useEffect(() => {
     let filtered = [...tasks];
     if (statusFilter !== 'all') {
@@ -108,13 +222,23 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
   const handleDelete = async (taskId: string) => {
     if (!confirm('Are you sure you want to delete this task?')) return;
 
+    // Find the task to get its title for the toast
+    const taskToDelete = tasks.find((task) => task.id === taskId);
+    const taskTitle = taskToDelete?.title || 'Task';
+
     setDeletingTaskId(taskId);
     try {
       await deleteTask(taskId);
       setTasks((prev) => prev.filter((task) => task.id !== taskId));
+      taskToasts.deleted(taskTitle);
     } catch (error) {
       console.error('Error deleting task:', error);
-      setError('Failed to delete task. Please try again.');
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Failed to delete task. Please try again.';
+      setError(errorMessage);
+      taskToasts.error('delete', errorMessage);
     } finally {
       setDeletingTaskId(null);
     }
@@ -124,6 +248,11 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
     taskId: string,
     newStatus: 'pending' | 'in_progress' | 'completed',
   ) => {
+    // Find the task to get its title for the toast
+    const taskToUpdate = tasks.find((task) => task.id === taskId);
+    const taskTitle = taskToUpdate?.title || 'Task';
+    const statusLabel = statusConfig[newStatus]?.label || newStatus;
+
     setUpdatingTaskId(taskId);
     try {
       await updateTask(taskId, { status: newStatus });
@@ -132,9 +261,15 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
           task.id === taskId ? { ...task, status: newStatus } : task,
         ),
       );
+      taskToasts.statusChanged(taskTitle, statusLabel);
     } catch (error) {
       console.error('Error updating task status:', error);
-      setError('Failed to update task status. Please try again.');
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Failed to update task status. Please try again.';
+      setError(errorMessage);
+      taskToasts.error('update', errorMessage);
     } finally {
       setUpdatingTaskId(null);
     }
@@ -175,6 +310,16 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
           <Badge variant="secondary" className="bg-slate-100 text-slate-700">
             {filteredTasks.length}{' '}
             {filteredTasks.length === 1 ? 'task' : 'tasks'}
+          </Badge>
+          <Badge
+            variant={isRealtimeConnected ? 'default' : 'destructive'}
+            className={
+              isRealtimeConnected
+                ? 'bg-green-100 text-green-800 border-green-200'
+                : 'bg-red-100 text-red-800 border-red-200'
+            }
+          >
+            {isRealtimeConnected ? '🟢 Live' : '🔴 Offline'}
           </Badge>
         </div>
 

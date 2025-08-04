@@ -4,6 +4,7 @@ import type React from 'react';
 
 import { useState } from 'react';
 import { createTask } from '@/lib/tasks';
+import { taskToasts } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -55,6 +56,9 @@ export default function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
         dueDate,
       });
 
+      // Show success toast
+      taskToasts.created(title);
+
       // Reset form fields
       setTitle('');
       setDescription('');
@@ -66,7 +70,12 @@ export default function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
       if (onTaskCreated) onTaskCreated();
     } catch (error) {
       console.error('Error creating task:', error);
-      setError('Failed to create task. Please try again.');
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Failed to create task. Please try again.';
+      setError(errorMessage);
+      taskToasts.error('create', errorMessage);
     } finally {
       setIsSubmitting(false);
     }
