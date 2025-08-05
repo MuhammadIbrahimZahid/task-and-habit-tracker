@@ -1,1 +1,11 @@
 @import 'tailwindcss';
+
+/* Toast background color override */
+[data-radix-toast-viewport] > div {
+  background-color: rgb(243 244 246) !important; /* bg-gray-100 */
+}
+
+/* Alternative selector for toast elements */
+[data-radix-toast-root] {
+  background-color: rgb(243 244 246) !important; /* bg-gray-100 */
+}
