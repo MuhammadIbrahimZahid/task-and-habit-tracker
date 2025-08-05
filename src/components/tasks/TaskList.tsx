@@ -6,6 +6,7 @@ import { taskToasts } from '@/lib/toast';
 import { subscribeToTasks } from '@/lib/realtime-subscriptions';
 import type { Task } from '@/types/task';
 import type { SubscriptionHandle } from '@/lib/realtime-subscriptions';
+import { useTaskEvents, useEventEmitters } from '@/hooks/use-cross-slice-events';
 import { Button } from '@/components/ui/button';
 import {
   Select,

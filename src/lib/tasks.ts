@@ -42,7 +42,7 @@ export async function createTask(taskData: {
           description: taskData.description,
           status: taskData.status || 'pending',
           priority: taskData.priority || 'medium',
-          due_date: taskData.dueDate,
+          due_date: taskData.dueDate || null,
         },
       ])
       .select()

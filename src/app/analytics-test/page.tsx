@@ -12,12 +12,13 @@ import {
 import { StreakChart } from '@/components/analytics/StreakChart';
 import { CompletionRateChart } from '@/components/analytics/CompletionRateChart';
 import { AnalyticsSummary } from '@/components/analytics/AnalyticsSummary';
+import { useRealtimeAnalytics } from '@/hooks/use-realtime-analytics';
 import type {
   StreakData,
   CompletionRateData,
   AnalyticsSummary as AnalyticsSummaryType,
 } from '@/types/analytics';
-import { BarChart3, RefreshCw } from 'lucide-react';
+import { BarChart3, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 
 export default function AnalyticsTestPage() {
   const [streaksData, setStreaksData] = useState<StreakData[]>([]);
@@ -32,6 +33,26 @@ export default function AnalyticsTestPage() {
   >('month');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string>('');
+
+  // Get user ID from session
+  useEffect(() => {
+    const getUserId = async () => {
+      try {
+        const { createClient } = await import('@/utils/supabase/client');
+        const supabase = createClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session?.user?.id) {
+          setUserId(session.user.id);
+        }
+      } catch (error) {
+        console.error('Error getting user ID:', error);
+      }
+    };
+    getUserId();
+  }, []);
 
   const fetchAnalyticsData = async () => {
     setIsLoading(true);
@@ -72,12 +93,19 @@ export default function AnalyticsTestPage() {
     }
   };
 
+  // Real-time analytics hook
+  const { isConnected, refreshAnalytics } = useRealtimeAnalytics({
+    userId,
+    onDataChange: fetchAnalyticsData,
+    enabled: !!userId,
+  });
+
   useEffect(() => {
     fetchAnalyticsData();
   }, [selectedPeriod]);
 
   const handleRefresh = () => {
-    fetchAnalyticsData();
+    refreshAnalytics();
   };
 
   if (error) {
@@ -89,6 +117,20 @@ export default function AnalyticsTestPage() {
           <p className="text-muted-foreground mb-4">
             Test your analytics components
           </p>
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <span className="text-sm text-muted-foreground">Real-time:</span>
+            {isConnected ? (
+              <div className="flex items-center gap-1 text-green-600">
+                <Wifi className="h-4 w-4" />
+                <span className="text-sm font-medium">Connected</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 text-red-600">
+                <WifiOff className="h-4 w-4" />
+                <span className="text-sm font-medium">Disconnected</span>
+              </div>
+            )}
+          </div>
           <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-4">
             <p className="text-destructive">Error: {error}</p>
           </div>

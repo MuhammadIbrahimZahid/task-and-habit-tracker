@@ -21,6 +21,8 @@ import {
 } from '@/components/ui/select';
 import { StreakChart } from '@/components/analytics/StreakChart';
 import { CompletionRateChart } from '@/components/analytics/CompletionRateChart';
+import { useAnalyticsEvents, useEventEmitters } from '@/hooks/use-cross-slice-events';
+import { useEffect } from 'react';
 
 interface AnalyticsSummaryData {
   total_habits: number;
@@ -54,6 +56,37 @@ export default function ModernAnalyticsDashboard({
   streaksData,
   completionData,
 }: ModernAnalyticsDashboardProps) {
+  // Cross-slice event integration
+  const { emitAnalyticsRefreshNeeded, emitAnalyticsDataUpdated } = useEventEmitters();
+  
+  // Listen to analytics events from other components
+  useAnalyticsEvents((eventType, payload) => {
+    console.log(`🔗 ModernAnalyticsDashboard: Received ${eventType} event:`, payload);
+    
+    // Handle analytics events from other components
+    switch (eventType) {
+      case 'ANALYTICS_REFRESH_NEEDED':
+        console.log('🔄 ModernAnalyticsDashboard: Refreshing due to external trigger');
+        onRefresh();
+        break;
+      case 'ANALYTICS_DATA_UPDATED':
+        console.log('🔄 ModernAnalyticsDashboard: Data updated externally');
+        // The parent component will handle the data update
+        break;
+    }
+  });
+
+  // Emit analytics refresh needed when data changes
+  useEffect(() => {
+    if (summaryData) {
+      console.log('🔗 ModernAnalyticsDashboard: Emitting analytics data updated');
+      emitAnalyticsDataUpdated({
+        userId: 'current', // This will be set by the parent component
+        trigger: 'real_time',
+        timestamp: new Date()
+      });
+    }
+  }, [summaryData, emitAnalyticsDataUpdated]);
   const metrics = [
     {
       title: 'Total Habits',
@@ -125,7 +158,15 @@ export default function ModernAnalyticsDashboard({
 
           <div className="flex gap-2">
             <Button
-              onClick={onRefresh}
+              onClick={() => {
+                console.log('🔗 ModernAnalyticsDashboard: Manual refresh triggered');
+                emitAnalyticsRefreshNeeded({
+                  userId: 'current',
+                  trigger: 'manual',
+                  timestamp: new Date()
+                });
+                onRefresh();
+              }}
               disabled={analyticsLoading}
               variant="outline"
               size="sm"
