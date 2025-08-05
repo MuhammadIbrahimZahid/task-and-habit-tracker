@@ -134,9 +134,8 @@ export default function DashboardPage() {
     onDataChange: () => {
       console.log('📊 Dashboard: Real-time analytics update triggered');
       setLastRealTimeUpdate(new Date());
-      if (activeSlice === 'analytics') {
-        fetchAnalyticsData();
-      }
+      // Always refresh analytics data when real-time events occur
+      fetchAnalyticsData();
     },
     enabled: !!session?.user?.id,
   });

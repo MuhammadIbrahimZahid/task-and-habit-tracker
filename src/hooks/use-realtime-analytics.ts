@@ -42,7 +42,7 @@ export function useRealtimeAnalytics({
       if (!isSubscribed.current) return;
 
       console.log('📊 Real-time analytics refresh triggered');
-      analyticsToasts.refreshed();
+      // Removed analytics toast to prevent overlapping with task/habit toasts
       onDataChangeRef.current?.();
     }, 1000), // 1 second debounce
     [],
