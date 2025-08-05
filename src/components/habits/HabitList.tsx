@@ -101,7 +101,7 @@ export default function HabitList({
     loadHabits();
   }, [userId, refreshKey]);
 
-  // Real-time subscription setup
+  // Real-time subscription setup using centralized subscription system
   useEffect(() => {
     let isSubscribed = true;
 
@@ -109,140 +109,163 @@ export default function HabitList({
       try {
         console.log('🔌 Setting up real-time subscription for habits...');
 
-        // Use the same pattern as the working debug page
-        const { createClient } = await import('@/utils/supabase/client');
-        const supabase = createClient();
+        // Use the centralized subscription system that's working for analytics
+        const { subscribeToTable } = await import(
+          '@/lib/realtime-subscriptions'
+        );
 
-        const channel = supabase
-          .channel(`habits-${userId}-${Date.now()}`)
-          .on(
-            'postgres_changes',
-            {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'habits',
-              filter: `user_id=eq.${userId}`,
-            },
-            (payload) => {
-              if (!isSubscribed) return;
-              console.log('📡 INSERT event received:', payload);
-              const newHabit = payload.new as Habit;
+        console.log(
+          '🔌 HabitList: About to subscribe to habits for userId:',
+          userId,
+        );
+                 const uniqueChannelName = `habits-list-${userId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+         const subscription = await subscribeToTable({
+           channelName: uniqueChannelName,
+           table: 'habits',
+           event: 'ALL',
+           filter: `user_id=eq.${userId}`,
+          onEvent: (payload) => {
+            if (!isSubscribed) return;
+            console.log('📡 HabitList: Real-time event received:', payload);
+            console.log('🔍 HabitList: Event details:', {
+              eventType: payload.eventType,
+              table: payload.table,
+              new: payload.new,
+              old: payload.old,
+            });
+
+            const { eventType, new: newRecord, old: oldRecord } = payload;
+            const habit = newRecord as Habit;
+
+            console.log('🔍 HabitList: Event details:', {
+              eventType,
+              habitId: habit?.id,
+              habitName: habit?.name,
+              userId: habit?.user_id,
+              deletedAt: habit?.deleted_at,
+            });
+
+            if (eventType === 'INSERT') {
+              console.log('📝 HabitList: Processing INSERT event');
               setHabits((prev) => {
                 // Check if habit already exists to prevent duplicates
-                if (prev.some((habit) => habit.id === newHabit.id)) {
-                  console.log(
-                    '📝 Habit already exists, skipping:',
-                    newHabit.name,
-                  );
+                if (prev.some((h) => h.id === habit.id)) {
+                  console.log('📝 Habit already exists, skipping:', habit.name);
                   return prev;
                 }
-                console.log('📝 Adding new habit to state:', newHabit.name);
+                console.log('📝 Adding new habit to state:', habit.name);
 
                 // Emit cross-slice event for habit creation
                 emitHabitCreated({
-                  habitId: newHabit.id,
-                  userId: newHabit.user_id,
-                  habitName: newHabit.name,
+                  habitId: habit.id,
+                  userId: habit.user_id,
+                  habitName: habit.name,
                   timestamp: new Date(),
                 });
 
-                // Show toast notification
-                habitToasts.created(newHabit.name);
+                                 // Don't show toast for real-time events to avoid duplicates
+                 console.log('🔔 Skipping toast for real-time habit creation:', habit.name);
 
-                return [newHabit, ...prev];
+                return [habit, ...prev];
               });
-            },
-          )
-          .on(
-            'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'habits',
-              filter: `user_id=eq.${userId}`,
-            },
-            (payload) => {
-              if (!isSubscribed) return;
-              console.log('📡 UPDATE event received:', payload);
-              const updatedHabit = payload.new as Habit;
+            } else if (eventType === 'UPDATE') {
+              console.log('📝 HabitList: Processing UPDATE event');
 
               // Check if this is a soft delete (deleted_at is set)
-              if (updatedHabit.deleted_at) {
-                console.log('📡 Soft DELETE detected:', updatedHabit.name);
+              if (habit.deleted_at) {
+                console.log('📡 Soft DELETE detected:', habit.name);
                 setHabits((prev) => {
                   console.log(
                     '📝 Removing soft-deleted habit from state:',
-                    updatedHabit.name,
+                    habit.name,
                   );
-                  
+
                   // Emit cross-slice event for habit deletion
                   emitHabitDeleted({
-                    habitId: updatedHabit.id,
-                    userId: updatedHabit.user_id,
-                    habitName: updatedHabit.name,
-                    timestamp: new Date()
+                    habitId: habit.id,
+                    userId: habit.user_id,
+                    habitName: habit.name,
+                    timestamp: new Date(),
                   });
-                  
-                  // Show toast notification
-                  habitToasts.deleted(updatedHabit.name);
-                  
-                  return prev.filter((habit) => habit.id !== updatedHabit.id);
+
+                                     // Don't show toast for real-time events to avoid duplicates
+                   console.log(
+                     '🔔 Skipping toast for real-time habit deletion:',
+                     habit.name,
+                   );
+
+                  return prev.filter((h) => h.id !== habit.id);
                 });
               } else {
                 // Regular update
                 setHabits((prev) => {
-                  console.log('📝 Updating habit in state:', updatedHabit.name);
-                  
+                  console.log('📝 Updating habit in state:', habit.name);
+
                   // Emit cross-slice event for habit update
                   emitHabitUpdated({
-                    habitId: updatedHabit.id,
-                    userId: updatedHabit.user_id,
-                    habitName: updatedHabit.name,
-                    timestamp: new Date()
+                    habitId: habit.id,
+                    userId: habit.user_id,
+                    habitName: habit.name,
+                    timestamp: new Date(),
                   });
-                  
-                  // Show toast notification
-                  habitToasts.updated(updatedHabit.name);
-                  
-                  return prev.map((habit) =>
-                    habit.id === updatedHabit.id ? updatedHabit : habit,
-                  );
+
+                                     // Don't show toast for real-time events to avoid duplicates
+                   console.log('🔔 Skipping toast for real-time habit update:', habit.name);
+
+                  return prev.map((h) => (h.id === habit.id ? habit : h));
                 });
               }
-            },
-          )
-          .subscribe((status) => {
-            if (!isSubscribed) return;
-            console.log('📡 Channel status:', status);
-            setIsRealtimeConnected(status === 'SUBSCRIBED');
-          });
-
-        subscriptionRef.current = {
-          channelName: `habits-${userId}-${Date.now()}`,
-          unsubscribe: async () => {
-            console.log('🧹 Cleaning up real-time subscription for habits');
-            await supabase.removeChannel(channel);
+            }
           },
-          isActive: () => true,
-        };
+          onError: (error) => {
+            console.error('❌ HabitList: Real-time subscription error:', error);
+            setIsRealtimeConnected(false);
+          },
+          onConnect: () => {
+            console.log('✅ HabitList: Habits subscription connected');
+                         console.log('🔍 HabitList: Subscription details:', {
+               channelName: uniqueChannelName,
+               userId,
+               isSubscribed,
+             });
+            setIsRealtimeConnected(true);
+            // Removed explicit toast call to prevent duplicate toasts
+          },
+          onDisconnect: () => {
+            console.log('❌ HabitList: Habits subscription disconnected');
+            setIsRealtimeConnected(false);
+          },
+        });
 
+        subscriptionRef.current = subscription;
         setIsRealtimeConnected(true);
-        console.log('✅ Real-time subscription established for habits');
+        console.log('✅ HabitList: Real-time subscription established');
       } catch (error) {
-        console.error('❌ Failed to setup real-time subscription:', error);
+        console.error(
+          '❌ HabitList: Failed to setup real-time subscription:',
+          error,
+        );
         setIsRealtimeConnected(false);
       }
     };
 
     if (userId) {
+      console.log(
+        '🔌 HabitList: Starting real-time subscription for userId:',
+        userId,
+      );
       setupRealtimeSubscription();
+    } else {
+      console.log(
+        '❌ HabitList: No userId provided, skipping real-time subscription',
+      );
     }
 
     // Cleanup subscription on unmount
     return () => {
       isSubscribed = false;
       if (subscriptionRef.current) {
-        console.log('🧹 Cleaning up real-time subscription for habits');
+        console.log('🧹 HabitList: Cleaning up real-time subscription');
         subscriptionRef.current.unsubscribe().catch(console.error);
         subscriptionRef.current = null;
         setIsRealtimeConnected(false);
@@ -255,30 +278,30 @@ export default function HabitList({
 
     setDeletingHabitId(habitId);
     try {
-      const habitToDelete = habits.find(h => h.id === habitId);
+      const habitToDelete = habits.find((h) => h.id === habitId);
       await deleteHabit(habitId);
       setHabits((prev) => prev.filter((habit) => habit.id !== habitId));
-      
+
       // Emit cross-slice event for manual habit deletion
       if (habitToDelete) {
         emitHabitDeleted({
           habitId: habitToDelete.id,
           userId: habitToDelete.user_id,
           habitName: habitToDelete.name,
-          timestamp: new Date()
+          timestamp: new Date(),
         });
-        
+
         // Show toast notification
         habitToasts.deleted(habitToDelete.name);
       }
-      
+
       onDelete?.();
     } catch (error) {
       setError('Failed to delete habit. Please try again later.');
       console.error('Error deleting habit:', error);
-      
+
       // Show error toast
-      const habitToDelete = habits.find(h => h.id === habitId);
+      const habitToDelete = habits.find((h) => h.id === habitId);
       if (habitToDelete) {
         habitToasts.error(`Failed to delete ${habitToDelete.name}`);
       }

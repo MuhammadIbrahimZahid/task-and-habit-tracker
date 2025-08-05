@@ -67,16 +67,22 @@ export async function subscribeToTable(
     const checkConnection = () => {
       const status = realtimeManager.getConnectionStatus();
       const isCurrentlyConnected = status.isConnected;
-      
+
       // Only trigger callbacks if status actually changed
       if (isCurrentlyConnected && !lastConnectionStatus) {
         onConnect?.();
-        realtimeToasts.connected();
-      } else if (!isCurrentlyConnected && lastConnectionStatus && status.error) {
+        // Only show toast if explicitly requested
+        // realtimeToasts.connected();
+      } else if (
+        !isCurrentlyConnected &&
+        lastConnectionStatus &&
+        status.error
+      ) {
         onDisconnect?.();
-        realtimeToasts.disconnected();
+        // Only show toast if explicitly requested
+        // realtimeToasts.disconnected();
       }
-      
+
       lastConnectionStatus = isCurrentlyConnected;
     };
 
@@ -103,9 +109,10 @@ export async function subscribeToTable(
     };
   } catch (error) {
     console.error(`❌ Failed to create subscription ${channelName}:`, error);
-    realtimeToasts.error(
-      error instanceof Error ? error.message : 'Subscription failed',
-    );
+    // Only show toast if explicitly requested
+    // realtimeToasts.error(
+    //   error instanceof Error ? error.message : 'Subscription failed',
+    // );
     onError?.(error as Error);
     throw error;
   }

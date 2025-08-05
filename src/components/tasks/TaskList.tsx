@@ -132,99 +132,82 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
       try {
         console.log('🔌 Setting up real-time subscription for tasks...');
 
-        // Use the same pattern as the working debug page
-        const { createClient } = await import('@/utils/supabase/client');
-        const supabase = createClient();
+        // Use the centralized subscription system
+        const { subscribeToTable } = await import('@/lib/realtime-subscriptions');
 
-        const channel = supabase
-          .channel(`tasks-${userId}-${Date.now()}`)
-          .on(
-            'postgres_changes',
-            {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'tasks',
-              filter: `user_id=eq.${userId}`,
-            },
-            (payload) => {
-              if (!isSubscribed) return;
-              console.log('📡 INSERT event received:', payload);
-              const newTask = payload.new as Task;
+        const subscription = await subscribeToTable({
+          channelName: `tasks-list-${userId}-${Date.now()}`,
+          table: 'tasks',
+          event: 'ALL',
+          filter: `user_id=eq.${userId}`,
+          onEvent: (payload) => {
+            if (!isSubscribed) return;
+            console.log('📡 TaskList: Real-time event received:', payload);
+
+            const { eventType, new: newRecord } = payload;
+            const task = newRecord as Task;
+
+            if (eventType === 'INSERT') {
+              console.log('📝 TaskList: Processing INSERT event');
               setTasks((prev) => {
                 // Check if task already exists to prevent duplicates
-                if (prev.some((task) => task.id === newTask.id)) {
-                  console.log(
-                    '📝 Task already exists, skipping:',
-                    newTask.title,
-                  );
+                if (prev.some((t) => t.id === task.id)) {
+                  console.log('📝 Task already exists, skipping:', task.title);
                   return prev;
                 }
-                console.log('📝 Adding new task to state:', newTask.title);
-                return [newTask, ...prev];
-              });
+                console.log('📝 Adding new task to state:', task.title);
 
-              // Emit cross-slice event
-              emitTaskCreated(newTask.id, newTask.user_id, newTask.title);
-            },
-          )
-          .on(
-            'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'tasks',
-              filter: `user_id=eq.${userId}`,
-            },
-            (payload) => {
-              if (!isSubscribed) return;
-              console.log('📡 UPDATE event received:', payload);
-              const updatedTask = payload.new as Task;
+                // Emit cross-slice event for task creation
+                emitTaskCreated(task.id, task.user_id, task.title);
+
+                return [task, ...prev];
+              });
+            } else if (eventType === 'UPDATE') {
+              console.log('📝 TaskList: Processing UPDATE event');
 
               // Check if this is a soft delete (deleted_at is set)
-              if (updatedTask.deleted_at) {
-                console.log('📡 Soft DELETE detected:', updatedTask.title);
+              if (task.deleted_at) {
+                console.log('📡 Soft DELETE detected:', task.title);
                 setTasks((prev) => {
-                  console.log(
-                    '📝 Removing soft-deleted task from state:',
-                    updatedTask.title,
-                  );
-                  return prev.filter((task) => task.id !== updatedTask.id);
-                });
+                  console.log('📝 Removing soft-deleted task from state:', task.title);
 
-                // Emit cross-slice event for task deletion
-                emitTaskDeleted(updatedTask.id, updatedTask.user_id, updatedTask.title);
+                  // Emit cross-slice event for task deletion
+                  emitTaskDeleted(task.id, task.user_id, task.title);
+
+                  return prev.filter((t) => t.id !== task.id);
+                });
               } else {
                 // Regular update
                 setTasks((prev) => {
-                  console.log('📝 Updating task in state:', updatedTask.title);
-                  return prev.map((task) =>
-                    task.id === updatedTask.id ? updatedTask : task,
-                  );
+                  console.log('📝 Updating task in state:', task.title);
+
+                  // Emit cross-slice event for task update
+                  emitTaskUpdated(task.id, task.user_id, task.title);
+
+                  return prev.map((t) => (t.id === task.id ? task : t));
                 });
-
-                // Emit cross-slice event for task update
-                emitTaskUpdated(updatedTask.id, updatedTask.user_id, updatedTask.title);
               }
-            },
-          )
-          .subscribe((status) => {
-            if (!isSubscribed) return;
-            console.log('📡 Channel status:', status);
-            setIsRealtimeConnected(status === 'SUBSCRIBED');
-          });
-
-        subscriptionRef.current = {
-          channelName: `tasks-${userId}-${Date.now()}`,
-          unsubscribe: async () => {
-            console.log('🧹 Cleaning up real-time subscription for tasks');
-            await supabase.removeChannel(channel);
+            }
           },
-          isActive: () => true,
-        };
+          onError: (error) => {
+            console.error('❌ TaskList: Real-time subscription error:', error);
+            setIsRealtimeConnected(false);
+          },
+          onConnect: () => {
+            console.log('✅ TaskList: Tasks subscription connected');
+            setIsRealtimeConnected(true);
+          },
+          onDisconnect: () => {
+            console.log('❌ TaskList: Tasks subscription disconnected');
+            setIsRealtimeConnected(false);
+          },
+        });
+
+        subscriptionRef.current = subscription;
         setIsRealtimeConnected(true);
-        console.log('✅ Real-time subscription established for tasks');
+        console.log('✅ TaskList: Real-time subscription established');
       } catch (error) {
-        console.error('❌ Failed to setup real-time subscription:', error);
+        console.error('❌ TaskList: Failed to setup real-time subscription:', error);
         setIsRealtimeConnected(false);
       }
     };

@@ -5,6 +5,7 @@ import type React from 'react';
 import { useState } from 'react';
 import { createTask } from '@/lib/tasks';
 import { taskToasts } from '@/lib/toast';
+import { useEventEmitters } from '@/hooks/use-cross-slice-events';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -31,6 +32,8 @@ type TaskFormProps = {
 };
 
 export default function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
+  // Cross-slice event integration
+  const { emitTaskCreated } = useEventEmitters();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -47,7 +50,7 @@ export default function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
     setError(null);
 
     try {
-      await createTask({
+      const newTask = await createTask({
         userId,
         title,
         description,
@@ -55,6 +58,9 @@ export default function TaskForm({ userId, onTaskCreated }: TaskFormProps) {
         priority,
         dueDate,
       });
+
+      // Emit cross-slice event for task creation
+      emitTaskCreated(newTask.id, newTask.user_id, newTask.title);
 
       // Show success toast
       taskToasts.created(title);
