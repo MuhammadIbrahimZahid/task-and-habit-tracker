@@ -29,11 +29,31 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Get task counts directly from the database
+    const { data: taskCounts, error: taskError } = await supabase
+      .from('tasks')
+      .select('id, status')
+      .eq('user_id', user.id)
+      .is('deleted_at', null);
+
+    if (taskError) {
+      console.error('Error getting task counts:', taskError);
+      return NextResponse.json(
+        { error: 'Failed to get task counts' },
+        { status: 500 },
+      );
+    }
+
+    const totalTasks = taskCounts?.length || 0;
+    const activeTasks = taskCounts?.filter(task => task.status === 'pending').length || 0;
+
     if (!summaryResult || summaryResult.length === 0) {
       // Return empty summary if no data
       const emptySummary: AnalyticsSummary = {
         total_habits: 0,
         active_habits: 0,
+        total_tasks: totalTasks,
+        active_tasks: activeTasks,
         average_completion_rate: 0,
         total_current_streaks: 0,
         longest_overall_streak: 0,
@@ -49,6 +69,8 @@ export async function GET(request: NextRequest) {
     const analyticsSummary: AnalyticsSummary = {
       total_habits: parseInt(summary.total_habits) || 0,
       active_habits: parseInt(summary.active_habits) || 0,
+      total_tasks: totalTasks,
+      active_tasks: activeTasks,
       average_completion_rate: parseFloat(summary.average_completion_rate) || 0,
       total_current_streaks: parseInt(summary.total_current_streaks) || 0,
       longest_overall_streak: parseInt(summary.longest_overall_streak) || 0,

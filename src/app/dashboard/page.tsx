@@ -26,7 +26,7 @@ import type { Habit } from '@/types/habit';
 import HabitTracker from '@/components/habits/HabitTracker';
 import ModernAnalyticsDashboard from '@/components/analytics/ModernAnalyticsDashboard';
 import { useRealtimeAnalytics } from '@/hooks/use-realtime-analytics';
-import { useHabitEvents, useAnalyticsEvents, useEventEmitters } from '@/hooks/use-cross-slice-events';
+import { useHabitEvents, useAnalyticsEvents, useTaskEvents, useEventEmitters } from '@/hooks/use-cross-slice-events';
 import type {
   StreakData,
   CompletionRateData,
@@ -68,6 +68,26 @@ export default function DashboardPage() {
 
   // Cross-slice event integration
   const { emitAnalyticsRefreshNeeded } = useEventEmitters();
+  
+  // Listen to task events and trigger analytics refresh
+  useTaskEvents((eventType, payload) => {
+    console.log(`🔗 Dashboard: Received ${eventType} event:`, payload);
+    
+    // Trigger analytics refresh when tasks change
+    if (payload.userId === session?.user?.id) {
+      console.log('🔄 Dashboard: Triggering analytics refresh due to task change');
+      emitAnalyticsRefreshNeeded({
+        userId: payload.userId,
+        trigger: 'task_change',
+        timestamp: new Date()
+      });
+      
+      // Refresh analytics data if we're on the analytics tab
+      if (activeSlice === 'analytics') {
+        fetchAnalyticsData();
+      }
+    }
+  });
   
   // Listen to habit events and trigger analytics refresh
   useHabitEvents((eventType, payload) => {

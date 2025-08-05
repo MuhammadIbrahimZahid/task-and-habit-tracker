@@ -6,7 +6,10 @@ import { taskToasts } from '@/lib/toast';
 import { subscribeToTasks } from '@/lib/realtime-subscriptions';
 import type { Task } from '@/types/task';
 import type { SubscriptionHandle } from '@/lib/realtime-subscriptions';
-import { useTaskEvents, useEventEmitters } from '@/hooks/use-cross-slice-events';
+import {
+  useTaskEvents,
+  useEventEmitters,
+} from '@/hooks/use-cross-slice-events';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -82,6 +85,27 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
   const subscriptionRef = useRef<SubscriptionHandle | null>(null);
 
+  // Cross-slice event integration
+  const {
+    emitTaskCreated,
+    emitTaskUpdated,
+    emitTaskDeleted,
+    emitTaskStatusChanged,
+  } = useEventEmitters();
+
+  // Listen to task events from other components
+  useTaskEvents((eventType, payload) => {
+    const taskPayload = payload as any;
+    console.log(`🔗 TaskList: Received ${eventType} event:`, payload);
+
+    // Handle cross-slice task events if needed
+    if (eventType === 'TASK_CREATED' && taskPayload.userId === userId) {
+      // Task was created elsewhere, refresh the list
+      console.log('🔄 TaskList: Refreshing due to external task creation');
+      // The real-time subscription should handle this, but we can add additional logic here
+    }
+  });
+
   useEffect(() => {
     const loadTasks = async () => {
       setIsLoading(true);
@@ -138,6 +162,9 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
                 console.log('📝 Adding new task to state:', newTask.title);
                 return [newTask, ...prev];
               });
+
+              // Emit cross-slice event
+              emitTaskCreated(newTask.id, newTask.user_id, newTask.title);
             },
           )
           .on(
@@ -152,14 +179,20 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
               if (!isSubscribed) return;
               console.log('📡 UPDATE event received:', payload);
               const updatedTask = payload.new as Task;
-              
+
               // Check if this is a soft delete (deleted_at is set)
               if (updatedTask.deleted_at) {
                 console.log('📡 Soft DELETE detected:', updatedTask.title);
                 setTasks((prev) => {
-                  console.log('📝 Removing soft-deleted task from state:', updatedTask.title);
+                  console.log(
+                    '📝 Removing soft-deleted task from state:',
+                    updatedTask.title,
+                  );
                   return prev.filter((task) => task.id !== updatedTask.id);
                 });
+
+                // Emit cross-slice event for task deletion
+                emitTaskDeleted(updatedTask.id, updatedTask.user_id, updatedTask.title);
               } else {
                 // Regular update
                 setTasks((prev) => {
@@ -168,6 +201,9 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
                     task.id === updatedTask.id ? updatedTask : task,
                   );
                 });
+
+                // Emit cross-slice event for task update
+                emitTaskUpdated(updatedTask.id, updatedTask.user_id, updatedTask.title);
               }
             },
           )
@@ -232,6 +268,9 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
       await deleteTask(taskId);
       setTasks((prev) => prev.filter((task) => task.id !== taskId));
       taskToasts.deleted(taskTitle);
+
+      // Emit cross-slice event for manual task deletion
+      emitTaskDeleted(taskId, userId, taskTitle);
     } catch (error) {
       console.error('Error deleting task:', error);
       const errorMessage =
@@ -263,6 +302,9 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
         ),
       );
       taskToasts.statusChanged(taskTitle, statusLabel);
+
+      // Emit cross-slice event for task status change
+      emitTaskStatusChanged(taskId, userId, taskToUpdate?.status || '', newStatus);
     } catch (error) {
       console.error('Error updating task status:', error);
       const errorMessage =

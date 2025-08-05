@@ -188,6 +188,8 @@ export default function AnalyticsTestPage() {
             summaryData || {
               total_habits: 0,
               active_habits: 0,
+              total_tasks: 0,
+              active_tasks: 0,
               average_completion_rate: 0,
               total_current_streaks: 0,
               longest_overall_streak: 0,
