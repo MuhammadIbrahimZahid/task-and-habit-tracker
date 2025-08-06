@@ -1,12 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { fetchHabits, deleteHabit } from '@/lib/habits';
 import type { Habit } from '@/types/habit';
+import type { SubscriptionHandle } from '@/lib/realtime-subscriptions';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Trash2, Target, Eye, Loader2, AlertCircle, Edit3 } from 'lucide-react';
+import {
+  useHabitEvents,
+  useEventEmitters,
+} from '@/hooks/use-cross-slice-events';
+import { habitToasts } from '@/lib/toast';
 
 type HabitListProps = {
   userId: string;
@@ -37,6 +43,45 @@ export default function HabitList({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingHabitId, setDeletingHabitId] = useState<string | null>(null);
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+  const subscriptionRef = useRef<SubscriptionHandle | null>(null);
+
+  // Cross-slice event integration
+  const { emitHabitCreated, emitHabitUpdated, emitHabitDeleted } =
+    useEventEmitters();
+
+  // Listen to habit events from other components
+  useHabitEvents((eventType, payload) => {
+    console.log(`🔗 HabitList: Received ${eventType} event:`, payload);
+
+    // Handle habit events from other components
+    switch (eventType) {
+      case 'HABIT_CREATED':
+        // Refresh habits list when a new habit is created elsewhere
+        if (payload.userId === userId) {
+          console.log('🔄 HabitList: Refreshing due to habit creation');
+          fetchHabits(userId).then(setHabits).catch(console.error);
+        }
+        break;
+      case 'HABIT_UPDATED':
+        // Update specific habit in the list
+        if (payload.userId === userId) {
+          console.log('🔄 HabitList: Updating habit due to external change');
+          fetchHabits(userId).then(setHabits).catch(console.error);
+        }
+        break;
+      case 'HABIT_DELETED':
+        // Remove habit from the list
+        if (payload.userId === userId) {
+          console.log('🔄 HabitList: Removing habit due to external deletion');
+          const habitPayload = payload as any; // Type assertion for habit events
+          setHabits((prev) =>
+            prev.filter((habit) => habit.id !== habitPayload.habitId),
+          );
+        }
+        break;
+    }
+  });
 
   useEffect(() => {
     const loadHabits = async () => {
@@ -56,17 +101,210 @@ export default function HabitList({
     loadHabits();
   }, [userId, refreshKey]);
 
+  // Real-time subscription setup using centralized subscription system
+  useEffect(() => {
+    let isSubscribed = true;
+
+    const setupRealtimeSubscription = async () => {
+      try {
+        console.log('🔌 Setting up real-time subscription for habits...');
+
+        // Use the centralized subscription system that's working for analytics
+        const { subscribeToTable } = await import(
+          '@/lib/realtime-subscriptions'
+        );
+
+        console.log(
+          '🔌 HabitList: About to subscribe to habits for userId:',
+          userId,
+        );
+                 const uniqueChannelName = `habits-list-${userId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+         const subscription = await subscribeToTable({
+           channelName: uniqueChannelName,
+           table: 'habits',
+           event: 'ALL',
+           filter: `user_id=eq.${userId}`,
+          onEvent: (payload) => {
+            if (!isSubscribed) return;
+            console.log('📡 HabitList: Real-time event received:', payload);
+            console.log('🔍 HabitList: Event details:', {
+              eventType: payload.eventType,
+              table: payload.table,
+              new: payload.new,
+              old: payload.old,
+            });
+
+            const { eventType, new: newRecord, old: oldRecord } = payload;
+            const habit = newRecord as Habit;
+
+            console.log('🔍 HabitList: Event details:', {
+              eventType,
+              habitId: habit?.id,
+              habitName: habit?.name,
+              userId: habit?.user_id,
+              deletedAt: habit?.deleted_at,
+            });
+
+            if (eventType === 'INSERT') {
+              console.log('📝 HabitList: Processing INSERT event');
+              setHabits((prev) => {
+                // Check if habit already exists to prevent duplicates
+                if (prev.some((h) => h.id === habit.id)) {
+                  console.log('📝 Habit already exists, skipping:', habit.name);
+                  return prev;
+                }
+                console.log('📝 Adding new habit to state:', habit.name);
+
+                // Emit cross-slice event for habit creation
+                emitHabitCreated({
+                  habitId: habit.id,
+                  userId: habit.user_id,
+                  habitName: habit.name,
+                  timestamp: new Date(),
+                });
+
+                                 // Don't show toast for real-time events to avoid duplicates
+                 console.log('🔔 Skipping toast for real-time habit creation:', habit.name);
+
+                return [habit, ...prev];
+              });
+            } else if (eventType === 'UPDATE') {
+              console.log('📝 HabitList: Processing UPDATE event');
+
+              // Check if this is a soft delete (deleted_at is set)
+              if (habit.deleted_at) {
+                console.log('📡 Soft DELETE detected:', habit.name);
+                setHabits((prev) => {
+                  console.log(
+                    '📝 Removing soft-deleted habit from state:',
+                    habit.name,
+                  );
+
+                  // Emit cross-slice event for habit deletion
+                  emitHabitDeleted({
+                    habitId: habit.id,
+                    userId: habit.user_id,
+                    habitName: habit.name,
+                    timestamp: new Date(),
+                  });
+
+                                     // Don't show toast for real-time events to avoid duplicates
+                   console.log(
+                     '🔔 Skipping toast for real-time habit deletion:',
+                     habit.name,
+                   );
+
+                  return prev.filter((h) => h.id !== habit.id);
+                });
+              } else {
+                // Regular update
+                setHabits((prev) => {
+                  console.log('📝 Updating habit in state:', habit.name);
+
+                  // Emit cross-slice event for habit update
+                  emitHabitUpdated({
+                    habitId: habit.id,
+                    userId: habit.user_id,
+                    habitName: habit.name,
+                    timestamp: new Date(),
+                  });
+
+                                     // Don't show toast for real-time events to avoid duplicates
+                   console.log('🔔 Skipping toast for real-time habit update:', habit.name);
+
+                  return prev.map((h) => (h.id === habit.id ? habit : h));
+                });
+              }
+            }
+          },
+          onError: (error) => {
+            console.error('❌ HabitList: Real-time subscription error:', error);
+            setIsRealtimeConnected(false);
+          },
+          onConnect: () => {
+            console.log('✅ HabitList: Habits subscription connected');
+                         console.log('🔍 HabitList: Subscription details:', {
+               channelName: uniqueChannelName,
+               userId,
+               isSubscribed,
+             });
+            setIsRealtimeConnected(true);
+            // Removed explicit toast call to prevent duplicate toasts
+          },
+          onDisconnect: () => {
+            console.log('❌ HabitList: Habits subscription disconnected');
+            setIsRealtimeConnected(false);
+          },
+        });
+
+        subscriptionRef.current = subscription;
+        setIsRealtimeConnected(true);
+        console.log('✅ HabitList: Real-time subscription established');
+      } catch (error) {
+        console.error(
+          '❌ HabitList: Failed to setup real-time subscription:',
+          error,
+        );
+        setIsRealtimeConnected(false);
+      }
+    };
+
+    if (userId) {
+      console.log(
+        '🔌 HabitList: Starting real-time subscription for userId:',
+        userId,
+      );
+      setupRealtimeSubscription();
+    } else {
+      console.log(
+        '❌ HabitList: No userId provided, skipping real-time subscription',
+      );
+    }
+
+    // Cleanup subscription on unmount
+    return () => {
+      isSubscribed = false;
+      if (subscriptionRef.current) {
+        console.log('🧹 HabitList: Cleaning up real-time subscription');
+        subscriptionRef.current.unsubscribe().catch(console.error);
+        subscriptionRef.current = null;
+        setIsRealtimeConnected(false);
+      }
+    };
+  }, [userId]);
+
   const handleDelete = async (habitId: string) => {
     if (!confirm('Are you sure you want to delete this habit?')) return;
 
     setDeletingHabitId(habitId);
     try {
+      const habitToDelete = habits.find((h) => h.id === habitId);
       await deleteHabit(habitId);
       setHabits((prev) => prev.filter((habit) => habit.id !== habitId));
+
+      // Emit cross-slice event for manual habit deletion
+      if (habitToDelete) {
+        emitHabitDeleted({
+          habitId: habitToDelete.id,
+          userId: habitToDelete.user_id,
+          habitName: habitToDelete.name,
+          timestamp: new Date(),
+        });
+
+        // Show toast notification
+        habitToasts.deleted(habitToDelete.name);
+      }
+
       onDelete?.();
     } catch (error) {
       setError('Failed to delete habit. Please try again later.');
       console.error('Error deleting habit:', error);
+
+      // Show error toast
+      const habitToDelete = habits.find((h) => h.id === habitId);
+      if (habitToDelete) {
+        habitToasts.error(`Failed to delete ${habitToDelete.name}`);
+      }
     } finally {
       setDeletingHabitId(null);
     }
@@ -110,6 +348,16 @@ export default function HabitList({
             <Badge variant="secondary" className="bg-slate-100 text-slate-700">
               {activeHabits.length}{' '}
               {activeHabits.length === 1 ? 'habit' : 'habits'}
+            </Badge>
+            <Badge
+              variant={isRealtimeConnected ? 'default' : 'destructive'}
+              className={
+                isRealtimeConnected
+                  ? 'bg-green-100 text-green-800 border-green-200'
+                  : 'bg-red-100 text-red-800 border-red-200'
+              }
+            >
+              {isRealtimeConnected ? '🟢 Live' : '🔴 Offline'}
             </Badge>
           </div>
         </div>

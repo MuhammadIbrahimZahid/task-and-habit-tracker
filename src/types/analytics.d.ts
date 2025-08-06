@@ -32,6 +32,8 @@ export interface HabitTrendData {
 export interface AnalyticsSummary {
   total_habits: number;
   active_habits: number;
+  total_tasks: number;
+  active_tasks: number;
   average_completion_rate: number;
   total_current_streaks: number;
   longest_overall_streak: number;

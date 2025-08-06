@@ -173,6 +173,7 @@ export function calculateAnalyticsSummary(
     is_active: boolean;
   }>,
   habitEvents: Array<{ habit_id: string; event_date: string }>,
+  tasks: Array<{ id: string; status: string }> = [],
 ): AnalyticsSummary {
   const activeHabits = habits.filter((h) => h.is_active);
   const totalHabits = habits.length;
@@ -232,9 +233,15 @@ export function calculateAnalyticsSummary(
     0,
   );
 
+  // Calculate task statistics
+  const totalTasks = tasks.length;
+  const activeTasks = tasks.filter((task) => task.status === 'pending').length;
+
   return {
     total_habits: totalHabits,
     active_habits: activeHabits.length,
+    total_tasks: totalTasks,
+    active_tasks: activeTasks,
     average_completion_rate: Math.round(averageCompletionRate * 100) / 100,
     total_current_streaks: totalCurrentStreaks,
     longest_overall_streak: longestOverallStreak,

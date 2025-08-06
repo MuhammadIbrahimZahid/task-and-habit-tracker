@@ -5,6 +5,8 @@ import { useEffect } from 'react';
 
 import { useState } from 'react';
 import { createHabit, updateHabit } from '@/lib/habits';
+import { useEventEmitters } from '@/hooks/use-cross-slice-events';
+import { habitToasts } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -39,6 +41,8 @@ export default function HabitForm({
   habit,
   onHabitUpdated,
 }: HabitFormProps) {
+  // Cross-slice event integration
+  const { emitHabitCreated, emitHabitUpdated } = useEventEmitters();
   const [name, setName] = useState(habit?.name || '');
   const [description, setDescription] = useState(habit?.description || '');
   const [goalType, setGoalType] = useState<'daily' | 'weekly' | 'monthly'>(
@@ -67,16 +71,28 @@ export default function HabitForm({
 
     try {
       if (habit) {
-        await updateHabit(habit.id, {
+        const updatedHabit = await updateHabit(habit.id, {
           name,
           description,
           goal_type: goalType,
           goal_target: goalTarget,
           color,
         });
+        
+        // Emit cross-slice event for habit update
+        emitHabitUpdated({
+          habitId: updatedHabit.id,
+          userId: updatedHabit.user_id,
+          habitName: updatedHabit.name,
+          timestamp: new Date(),
+        });
+        
+        // Show toast notification
+        habitToasts.updated(updatedHabit.name);
+        
         if (onHabitUpdated) onHabitUpdated();
       } else {
-        await createHabit({
+        const newHabit = await createHabit({
           user_id: userId,
           name,
           description,
@@ -85,6 +101,18 @@ export default function HabitForm({
           color: color,
           is_active: true,
         });
+        
+        // Emit cross-slice event for habit creation
+        emitHabitCreated({
+          habitId: newHabit.id,
+          userId: newHabit.user_id,
+          habitName: newHabit.name,
+          timestamp: new Date(),
+        });
+        
+        // Show toast notification
+        habitToasts.created(newHabit.name);
+        
         setName('');
         setDescription('');
         setGoalType('daily');

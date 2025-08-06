@@ -42,9 +42,10 @@ export async function createTask(taskData: {
           description: taskData.description,
           status: taskData.status || 'pending',
           priority: taskData.priority || 'medium',
-          due_date: taskData.dueDate,
+          due_date: taskData.dueDate || null,
         },
       ])
+      .select()
       .single();
 
     if (error) throw error;
@@ -64,6 +65,7 @@ export async function updateTask(taskId: string, updates: Partial<Task>) {
       .from('tasks')
       .update(updates)
       .eq('id', taskId)
+      .select()
       .single();
 
     if (error) throw error;
@@ -83,6 +85,7 @@ export async function deleteTask(taskId: string) {
       .from('tasks')
       .update({ deleted_at: new Date() })
       .eq('id', taskId)
+      .select()
       .single();
 
     if (error) throw error;

@@ -21,10 +21,16 @@ import {
 } from '@/components/ui/select';
 import { StreakChart } from '@/components/analytics/StreakChart';
 import { CompletionRateChart } from '@/components/analytics/CompletionRateChart';
+import {
+  useAnalyticsEvents,
+  useEventEmitters,
+} from '@/hooks/use-cross-slice-events';
 
 interface AnalyticsSummaryData {
   total_habits: number;
   active_habits: number;
+  total_tasks: number;
+  active_tasks: number;
   average_completion_rate: number;
   total_current_streaks: number;
   longest_overall_streak: number;
@@ -54,6 +60,32 @@ export default function ModernAnalyticsDashboard({
   streaksData,
   completionData,
 }: ModernAnalyticsDashboardProps) {
+  // Cross-slice event integration
+  const { emitAnalyticsRefreshNeeded, emitAnalyticsDataUpdated } =
+    useEventEmitters();
+
+  // Listen to analytics events from other components
+  useAnalyticsEvents((eventType, payload) => {
+    console.log(
+      `🔗 ModernAnalyticsDashboard: Received ${eventType} event:`,
+      payload,
+    );
+
+    // Handle analytics events from other components
+    switch (eventType) {
+      case 'ANALYTICS_REFRESH_NEEDED':
+        console.log(
+          '🔄 ModernAnalyticsDashboard: Refreshing due to external trigger',
+        );
+        onRefresh();
+        break;
+      case 'ANALYTICS_DATA_UPDATED':
+        console.log('🔄 ModernAnalyticsDashboard: Data updated externally');
+        // The parent component will handle the data update
+        break;
+    }
+  });
+
   const metrics = [
     {
       title: 'Total Habits',
@@ -68,6 +100,20 @@ export default function ModernAnalyticsDashboard({
       subtitle: 'Currently tracking',
       icon: Activity,
       color: 'text-green-600',
+    },
+    {
+      title: 'Total Tasks',
+      value: summaryData?.total_tasks || 0,
+      subtitle: 'Tasks created',
+      icon: Target,
+      color: 'text-indigo-600',
+    },
+    {
+      title: 'Active Tasks',
+      value: summaryData?.active_tasks || 0,
+      subtitle: 'Pending tasks',
+      icon: Activity,
+      color: 'text-cyan-600',
     },
     {
       title: 'Completion Rate',
@@ -125,7 +171,17 @@ export default function ModernAnalyticsDashboard({
 
           <div className="flex gap-2">
             <Button
-              onClick={onRefresh}
+              onClick={() => {
+                console.log(
+                  '🔗 ModernAnalyticsDashboard: Manual refresh triggered',
+                );
+                emitAnalyticsRefreshNeeded({
+                  userId: 'current',
+                  trigger: 'manual',
+                  timestamp: new Date(),
+                });
+                onRefresh();
+              }}
               disabled={analyticsLoading}
               variant="outline"
               size="sm"
@@ -183,13 +239,13 @@ export default function ModernAnalyticsDashboard({
                     {metric.title}
                   </p>
                   <div className="space-y-1">
-                    <p className="text-3xl font-bold text-slate-900">
+                    <div className="text-3xl font-bold text-slate-900">
                       {analyticsLoading ? (
                         <div className="h-8 w-16 bg-slate-200 rounded animate-pulse" />
                       ) : (
                         metric.value
                       )}
-                    </p>
+                    </div>
                     <p className="text-xs text-slate-500">{metric.subtitle}</p>
                   </div>
                 </div>

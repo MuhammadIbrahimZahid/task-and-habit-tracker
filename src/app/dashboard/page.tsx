@@ -16,6 +16,8 @@ import {
   Eye,
   Loader2,
   BarChart3,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import HabitForm from '@/components/habits/HabitForm';
 import HabitList from '@/components/habits/HabitList';
@@ -23,6 +25,8 @@ import HabitDetails from '@/components/habits/HabitDetails';
 import type { Habit } from '@/types/habit';
 import HabitTracker from '@/components/habits/HabitTracker';
 import ModernAnalyticsDashboard from '@/components/analytics/ModernAnalyticsDashboard';
+import { useRealtimeAnalytics } from '@/hooks/use-realtime-analytics';
+import { useHabitEvents, useAnalyticsEvents, useTaskEvents, useEventEmitters } from '@/hooks/use-cross-slice-events';
 import type {
   StreakData,
   CompletionRateData,
@@ -56,8 +60,85 @@ export default function DashboardPage() {
   >('month');
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+  const [lastRealTimeUpdate, setLastRealTimeUpdate] = useState<Date | null>(
+    null,
+  );
 
   const router = useRouter();
+
+  // Cross-slice event integration
+  const { emitAnalyticsRefreshNeeded } = useEventEmitters();
+  
+  // Listen to task events and trigger analytics refresh
+  useTaskEvents((eventType, payload) => {
+    console.log(`🔗 Dashboard: Received ${eventType} event:`, payload);
+    
+    // Trigger analytics refresh when tasks change
+    if (payload.userId === session?.user?.id) {
+      console.log('🔄 Dashboard: Triggering analytics refresh due to task change');
+      emitAnalyticsRefreshNeeded({
+        userId: payload.userId,
+        trigger: 'task_change',
+        timestamp: new Date()
+      });
+      
+      // Refresh analytics data if we're on the analytics tab
+      if (activeSlice === 'analytics') {
+        fetchAnalyticsData();
+      }
+    }
+  });
+  
+  // Listen to habit events and trigger analytics refresh
+  useHabitEvents((eventType, payload) => {
+    console.log(`🔗 Dashboard: Received ${eventType} event:`, payload);
+    
+    // Trigger analytics refresh when habits change
+    if (payload.userId === session?.user?.id) {
+      console.log('🔄 Dashboard: Triggering analytics refresh due to habit change');
+      emitAnalyticsRefreshNeeded({
+        userId: payload.userId,
+        trigger: 'habit_change',
+        timestamp: new Date()
+      });
+      
+      // Refresh analytics data if we're on the analytics tab
+      if (activeSlice === 'analytics') {
+        fetchAnalyticsData();
+      }
+    }
+  });
+  
+  // Listen to analytics events
+  useAnalyticsEvents((eventType, payload) => {
+    console.log(`🔗 Dashboard: Received ${eventType} event:`, payload);
+    
+    // Handle analytics events
+    switch (eventType) {
+      case 'ANALYTICS_REFRESH_NEEDED':
+        console.log('🔄 Dashboard: Analytics refresh needed');
+        if (activeSlice === 'analytics') {
+          fetchAnalyticsData();
+        }
+        break;
+      case 'ANALYTICS_DATA_UPDATED':
+        console.log('🔄 Dashboard: Analytics data updated');
+        setLastRealTimeUpdate(new Date());
+        break;
+    }
+  });
+
+  // Real-time analytics hook
+  const { isConnected: analyticsConnected } = useRealtimeAnalytics({
+    userId: session?.user?.id || '',
+    onDataChange: () => {
+      console.log('📊 Dashboard: Real-time analytics update triggered');
+      setLastRealTimeUpdate(new Date());
+      // Always refresh analytics data when real-time events occur
+      fetchAnalyticsData();
+    },
+    enabled: !!session?.user?.id,
+  });
 
   useEffect(() => {
     const supabase = createClient();
@@ -613,17 +694,49 @@ export default function DashboardPage() {
         )}
 
         {activeSlice === 'analytics' && (
-          <ModernAnalyticsDashboard
-            summaryData={summaryData}
-            selectedPeriod={selectedPeriod}
-            onPeriodChange={setSelectedPeriod}
-            onRefresh={handleRefreshAnalytics}
-            onExport={() => handleExportCSV('all')}
-            analyticsLoading={analyticsLoading}
-            analyticsError={analyticsError}
-            streaksData={streaksData}
-            completionData={completionData}
-          />
+          <div className="max-w-6xl mx-auto">
+            {/* Real-time Status Indicator */}
+            <div className="flex items-center justify-center gap-4 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-600">
+                  Real-time Analytics:
+                </span>
+                {analyticsConnected ? (
+                  <div className="flex items-center gap-1 text-green-600">
+                    <Wifi className="h-4 w-4" />
+                    <span className="text-sm font-medium">
+                      Live Updates Active
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 text-red-600">
+                    <WifiOff className="h-4 w-4" />
+                    <span className="text-sm font-medium">
+                      Manual Refresh Only
+                    </span>
+                  </div>
+                )}
+              </div>
+              
+              {lastRealTimeUpdate && (
+                <div className="text-xs text-slate-500">
+                  Last update: {lastRealTimeUpdate.toLocaleTimeString()}
+                </div>
+              )}
+            </div>
+
+            <ModernAnalyticsDashboard
+              summaryData={summaryData}
+              selectedPeriod={selectedPeriod}
+              onPeriodChange={setSelectedPeriod}
+              onRefresh={handleRefreshAnalytics}
+              onExport={() => handleExportCSV('all')}
+              analyticsLoading={analyticsLoading}
+              analyticsError={analyticsError}
+              streaksData={streaksData}
+              completionData={completionData}
+            />
+          </div>
         )}
       </main>
     </div>
