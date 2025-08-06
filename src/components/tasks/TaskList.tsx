@@ -28,6 +28,7 @@ import {
   Loader2,
   AlertCircle,
 } from 'lucide-react';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
 
 type TaskListProps = {
   userId: string;
@@ -83,6 +84,8 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const subscriptionRef = useRef<SubscriptionHandle | null>(null);
 
   // Cross-slice event integration
@@ -133,7 +136,9 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
         console.log('🔌 Setting up real-time subscription for tasks...');
 
         // Use the centralized subscription system
-        const { subscribeToTable } = await import('@/lib/realtime-subscriptions');
+        const { subscribeToTable } = await import(
+          '@/lib/realtime-subscriptions'
+        );
 
         const subscription = await subscribeToTable({
           channelName: `tasks-list-${userId}-${Date.now()}`,
@@ -169,7 +174,10 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
               if (task.deleted_at) {
                 console.log('📡 Soft DELETE detected:', task.title);
                 setTasks((prev) => {
-                  console.log('📝 Removing soft-deleted task from state:', task.title);
+                  console.log(
+                    '📝 Removing soft-deleted task from state:',
+                    task.title,
+                  );
 
                   // Emit cross-slice event for task deletion
                   emitTaskDeleted(task.id, task.user_id, task.title);
@@ -207,7 +215,10 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
         setIsRealtimeConnected(true);
         console.log('✅ TaskList: Real-time subscription established');
       } catch (error) {
-        console.error('❌ TaskList: Failed to setup real-time subscription:', error);
+        console.error(
+          '❌ TaskList: Failed to setup real-time subscription:',
+          error,
+        );
         setIsRealtimeConnected(false);
       }
     };
@@ -239,14 +250,20 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
     setFilteredTasks(filtered);
   }, [tasks, statusFilter, priorityFilter]);
 
-  const handleDelete = async (taskId: string) => {
-    if (!confirm('Are you sure you want to delete this task?')) return;
+  const handleDeleteClick = (task: Task) => {
+    setTaskToDelete(task);
+    setShowDeleteConfirm(true);
+  };
 
-    // Find the task to get its title for the toast
-    const taskToDelete = tasks.find((task) => task.id === taskId);
-    const taskTitle = taskToDelete?.title || 'Task';
+  const handleDeleteConfirm = async () => {
+    if (!taskToDelete) return;
+
+    const taskId = taskToDelete.id;
+    const taskTitle = taskToDelete.title;
 
     setDeletingTaskId(taskId);
+    setShowDeleteConfirm(false);
+
     try {
       await deleteTask(taskId);
       setTasks((prev) => prev.filter((task) => task.id !== taskId));
@@ -264,7 +281,13 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
       taskToasts.error('delete', errorMessage);
     } finally {
       setDeletingTaskId(null);
+      setTaskToDelete(null);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+    setTaskToDelete(null);
   };
 
   const handleStatusChange = async (
@@ -287,7 +310,12 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
       taskToasts.statusChanged(taskTitle, statusLabel);
 
       // Emit cross-slice event for task status change
-      emitTaskStatusChanged(taskId, userId, taskToUpdate?.status || '', newStatus);
+      emitTaskStatusChanged(
+        taskId,
+        userId,
+        taskToUpdate?.status || '',
+        newStatus,
+      );
     } catch (error) {
       console.error('Error updating task status:', error);
       const errorMessage =
@@ -430,7 +458,7 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleDelete(task.id)}
+                    onClick={() => handleDeleteClick(task)}
                     disabled={deletingTaskId === task.id}
                     className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1 h-auto disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
                     aria-label={`Delete task: ${task.title}`}
@@ -526,6 +554,19 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Task"
+        message={`Are you sure you want to delete "${taskToDelete?.title}"? This action cannot be undone.`}
+        confirmText="Delete Task"
+        cancelText="Cancel"
+        type="danger"
+        isLoading={deletingTaskId !== null}
+      />
     </div>
   );
 }

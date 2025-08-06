@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Trash2, Target, Eye, Loader2, AlertCircle, Edit3 } from 'lucide-react';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
 import {
   useHabitEvents,
   useEventEmitters,
@@ -44,6 +45,8 @@ export default function HabitList({
   const [error, setError] = useState<string | null>(null);
   const [deletingHabitId, setDeletingHabitId] = useState<string | null>(null);
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [habitToDelete, setHabitToDelete] = useState<Habit | null>(null);
   const subscriptionRef = useRef<SubscriptionHandle | null>(null);
 
   // Cross-slice event integration
@@ -273,41 +276,50 @@ export default function HabitList({
     };
   }, [userId]);
 
-  const handleDelete = async (habitId: string) => {
-    if (!confirm('Are you sure you want to delete this habit?')) return;
+  const handleDeleteClick = (habit: Habit) => {
+    setHabitToDelete(habit);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!habitToDelete) return;
+
+    const habitId = habitToDelete.id;
+    const habitName = habitToDelete.name;
 
     setDeletingHabitId(habitId);
+    setShowDeleteConfirm(false);
+    
     try {
-      const habitToDelete = habits.find((h) => h.id === habitId);
       await deleteHabit(habitId);
       setHabits((prev) => prev.filter((habit) => habit.id !== habitId));
 
       // Emit cross-slice event for manual habit deletion
-      if (habitToDelete) {
-        emitHabitDeleted({
-          habitId: habitToDelete.id,
-          userId: habitToDelete.user_id,
-          habitName: habitToDelete.name,
-          timestamp: new Date(),
-        });
+      emitHabitDeleted({
+        habitId: habitToDelete.id,
+        userId: habitToDelete.user_id,
+        habitName: habitToDelete.name,
+        timestamp: new Date(),
+      });
 
-        // Show toast notification
-        habitToasts.deleted(habitToDelete.name);
-      }
-
+      // Show toast notification
+      habitToasts.deleted(habitName);
       onDelete?.();
     } catch (error) {
       setError('Failed to delete habit. Please try again later.');
       console.error('Error deleting habit:', error);
 
       // Show error toast
-      const habitToDelete = habits.find((h) => h.id === habitId);
-      if (habitToDelete) {
-        habitToasts.error(`Failed to delete ${habitToDelete.name}`);
-      }
+      habitToasts.error(`Failed to delete ${habitName}`);
     } finally {
       setDeletingHabitId(null);
+      setHabitToDelete(null);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+    setHabitToDelete(null);
   };
 
   const activeHabits = habits.filter((habit) => habit.is_active);
@@ -413,7 +425,7 @@ export default function HabitList({
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDelete(habit.id);
+                        handleDeleteClick(habit);
                       }}
                       className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1 h-auto transition-colors duration-200"
                       disabled={deletingHabitId === habit.id}
@@ -476,6 +488,19 @@ export default function HabitList({
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Habit"
+        message={`Are you sure you want to delete "${habitToDelete?.name}"? This action cannot be undone.`}
+        confirmText="Delete Habit"
+        cancelText="Cancel"
+        type="danger"
+        isLoading={deletingHabitId !== null}
+      />
     </div>
   );
 }
