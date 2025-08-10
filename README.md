@@ -22,6 +22,12 @@ This project is already hosted and can be accessed at https://task-and-habit-tra
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## .env.local
+
+ NEXT_PUBLIC_SUPABASE_URL=https://nextpublicsupabaseurl.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=samplenextpublicsupabaseanonkey
+NEXT_PUBLIC_SITE_URL=https://your-hosted-url.vercel.app/
+NODE_ENV=development
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
