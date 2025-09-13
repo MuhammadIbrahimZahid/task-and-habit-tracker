@@ -73,6 +73,3 @@ Next.js Documentation
 
 Learn Next.js
  - An interactive Next.js tutorial.
-
-
-This Markdown formatting should now be properly structured for documentation purposes. Let me know if you'd like to modify or add anything!
