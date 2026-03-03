@@ -1,18 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
-type CookieOptions = {
-  path?: string;
-  maxAge?: number;
-  httpOnly?: boolean;
-  secure?: boolean;
-  sameSite?: 'lax' | 'strict' | 'none';
-};
-
 type CookieToSet = {
   name: string;
   value: string;
-  options?: CookieOptions;
+  options?: {
+    path?: string;
+    maxAge?: number;
+    httpOnly?: boolean;
+    secure?: boolean;
+    sameSite?: 'lax' | 'strict' | 'none';
+  };
 };
 
 export async function middleware(request: NextRequest) {
@@ -26,7 +24,7 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        // ✅ Explicit type added here
+        // ✅ Explicit type added
         setAll(cookiesToSet: CookieToSet[]) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
@@ -58,9 +56,3 @@ export async function middleware(request: NextRequest) {
 
   return response;
 }
-
-export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
-};
