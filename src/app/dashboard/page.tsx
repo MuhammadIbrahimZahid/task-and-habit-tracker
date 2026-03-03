@@ -26,7 +26,12 @@ import type { Habit } from '@/types/habit';
 import HabitTracker from '@/components/habits/HabitTracker';
 import ModernAnalyticsDashboard from '@/components/analytics/ModernAnalyticsDashboard';
 import { useRealtimeAnalytics } from '@/hooks/use-realtime-analytics';
-import { useHabitEvents, useAnalyticsEvents, useTaskEvents, useEventEmitters } from '@/hooks/use-cross-slice-events';
+import {
+  useHabitEvents,
+  useAnalyticsEvents,
+  useTaskEvents,
+  useEventEmitters,
+} from '@/hooks/use-cross-slice-events';
 import type {
   StreakData,
   CompletionRateData,
@@ -69,51 +74,51 @@ export default function DashboardPage() {
 
   // Cross-slice event integration
   const { emitAnalyticsRefreshNeeded } = useEventEmitters();
-  
+
   // Listen to task events and trigger analytics refresh
   useTaskEvents((eventType, payload) => {
     event(`Dashboard: Received ${eventType} event:`, payload);
-    
+
     // Trigger analytics refresh when tasks change
     if (payload.userId === session?.user?.id) {
       analytics('Dashboard: Triggering analytics refresh due to task change');
       emitAnalyticsRefreshNeeded({
         userId: payload.userId,
         trigger: 'task_change',
-        timestamp: new Date()
+        timestamp: new Date(),
       });
-      
+
       // Refresh analytics data if we're on the analytics tab
       if (activeSlice === 'analytics') {
         fetchAnalyticsData();
       }
     }
   });
-  
+
   // Listen to habit events and trigger analytics refresh
   useHabitEvents((eventType, payload) => {
     event(`Dashboard: Received ${eventType} event:`, payload);
-    
+
     // Trigger analytics refresh when habits change
     if (payload.userId === session?.user?.id) {
       analytics('Dashboard: Triggering analytics refresh due to habit change');
       emitAnalyticsRefreshNeeded({
         userId: payload.userId,
         trigger: 'habit_change',
-        timestamp: new Date()
+        timestamp: new Date(),
       });
-      
+
       // Refresh analytics data if we're on the analytics tab
       if (activeSlice === 'analytics') {
         fetchAnalyticsData();
       }
     }
   });
-  
+
   // Listen to analytics events
   useAnalyticsEvents((eventType, payload) => {
     event(`Dashboard: Received ${eventType} event:`, payload);
-    
+
     // Handle analytics events
     switch (eventType) {
       case 'ANALYTICS_REFRESH_NEEDED':
@@ -718,7 +723,7 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
-              
+
               {lastRealTimeUpdate && (
                 <div className="text-xs text-slate-500">
                   Last update: {lastRealTimeUpdate.toLocaleTimeString()}
