@@ -1,9 +1,23 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { updateSession } from '@/utils/supabase/middleware';
 import { createServerClient } from '@supabase/ssr';
+
+type CookieOptions = {
+  path?: string;
+  maxAge?: number;
+  httpOnly?: boolean;
+  secure?: boolean;
+  sameSite?: 'lax' | 'strict' | 'none';
+};
+
+type CookieToSet = {
+  name: string;
+  value: string;
+  options?: CookieOptions;
+};
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next();
+
   const supabase = await createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -12,17 +26,19 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value),
-          );
+        setAll(cookiesToSet: CookieToSet[]) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            request.cookies.set({ name, value, ...options });
+          });
         },
       },
     },
   );
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
   const { pathname } = request.nextUrl;
   const publicRoutes = ['/sign-in', '/', '/auth/callback'];
   const isPublicRoute = publicRoutes.includes(pathname);
@@ -44,13 +60,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
