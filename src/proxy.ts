@@ -1,22 +1,28 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
 type CookieToSet = {
   name: string;
   value: string;
-  options?: {
-    path?: string;
-    maxAge?: number;
-    httpOnly?: boolean;
-    secure?: boolean;
-    sameSite?: 'lax' | 'strict' | 'none';
-  };
+  options?: CookieOptions;
 };
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // ✅ Never run on static / internal files
+  if (
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/api') ||
+    pathname.startsWith('/favicon.ico') ||
+    pathname.match(/\.(.*)$/)
+  ) {
+    return NextResponse.next();
+  }
+
   const response = NextResponse.next();
 
-  const supabase = await createServerClient(
+  const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -24,11 +30,10 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        // ✅ Explicit type added
         setAll(cookiesToSet: CookieToSet[]) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value),
-          );
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
         },
       },
     },
@@ -38,16 +43,17 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
-  const publicRoutes = ['/sign-in', '/', '/auth/callback'];
+  const publicRoutes = ['/', '/sign-in', '/auth/callback'];
   const isPublicRoute = publicRoutes.includes(pathname);
 
+  // Redirect logged-in users away from public pages
   if (user && isPublicRoute) {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
     return NextResponse.redirect(url);
   }
 
+  // Protect private routes
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
     url.pathname = '/sign-in';
@@ -56,3 +62,7 @@ export async function middleware(request: NextRequest) {
 
   return response;
 }
+
+export const config = {
+  matcher: ['/((?!_next|favicon.ico|api).*)'],
+};
