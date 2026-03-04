@@ -1,0 +1,220 @@
+# Task & Habit Tracker – Debugging & Deployment Guide
+
+## 1. **Real-time Subscription Issues (Next.js + Supabase)**
+
+### **Problem**
+
+* During development, `TaskList` was showing console errors like:
+
+  ```
+  Channel tasks-list-ea1d87d4-73cf-4747-98d2-3045ecc10c17-1772623312006 error
+  ```
+* Errors were triggered by real-time events and subscription handling.
+
+### **Cause**
+
+* The `useEffect` for real-time subscriptions in `TaskList.tsx` was creating **unique channel names on every render** due to `Date.now()`:
+
+  ```ts
+  channelName: `tasks-list-${userId}-${Date.now()}`
+  ```
+* This caused **duplicate channels** or inconsistent subscription behavior.
+
+### **Fix**
+
+1. Use a **stable channel name** per user/session:
+
+   ```ts
+   channelName: `tasks-${userId}`
+   ```
+2. Use centralized subscription helpers in `realtime-subscriptions.ts`:
+
+   ```ts
+   import { subscribeToTable } from '@/lib/realtime-subscriptions';
+
+   const subscription = await subscribeToTable({
+     channelName: `tasks-${userId}`,
+     table: 'tasks',
+     event: 'ALL',
+     filter: `user_id=eq.${userId}`,
+     onEvent: handleRealtimeEvent,
+     onError: handleError,
+     onConnect: () => setIsRealtimeConnected(true),
+     onDisconnect: () => setIsRealtimeConnected(false),
+   });
+   ```
+3. Ensure **cleanup on unmount**:
+
+   ```ts
+   return () => {
+     subscriptionRef.current?.unsubscribe();
+   };
+   ```
+
+### **Result**
+
+* Real-time updates work reliably.
+* Prevents duplicate events and inconsistent state updates.
+
+---
+
+## 2. **Google Sign-In (Supabase OAuth) TypeScript Fixes**
+
+### **Problem**
+
+* TypeScript errors:
+
+  ```
+  Expected 0 arguments, but got 1
+  Property 'error' does not exist on type '{ provider: Provider; url: string; }'
+  ```
+* Your `signInWithGoogle('/dashboard')` call was incorrect for the latest Supabase SDK.
+
+### **Fix**
+
+1. Update `signInWithGoogle` to **take no arguments**:
+
+   ```ts
+   export async function signInWithGoogle() {
+     const supabase = await createClient();
+     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://task-and-habit-tracker.vercel.app';
+     const { data, error } = await supabase.auth.signInWithOAuth({
+       provider: 'google',
+       options: {
+         redirectTo: `${baseUrl}/auth/callback?next=/dashboard`,
+         queryParams: { prompt: 'select_account' },
+       },
+     });
+     if (error) throw error;
+     return data;
+   }
+   ```
+2. Update `page.tsx`:
+
+   ```ts
+   const { url } = await signInWithGoogle();
+   if (url) window.location.href = url;
+   ```
+3. Remove `error` destructuring because `signInWithOAuth` returns `{ provider, url }`.
+
+---
+
+## 3. **OAuth Callback Handling**
+
+### **Problem**
+
+* Locally, sign-in worked, but hosted version kept redirecting to:
+
+  ```
+  https://task-and-habit-tracker.vercel.app/?code=...
+  ```
+* User got stuck on `Logging you in…` page.
+
+### **Cause**
+
+* **Supabase Site URL** was still pointing to `localhost` for hosted app.
+* Having both `page.tsx` and `route.ts` in `/auth/callback` caused **Next.js conflict**:
+
+  ```
+  Conflicting route and page at /auth/callback
+  ```
+
+### **Fix**
+
+1. **Remove `page.tsx` in `/auth/callback`** — only `route.ts` is needed for OAuth flow.
+2. Correct `route.ts`:
+
+   ```ts
+   import { NextResponse } from 'next/server';
+   import { createClient } from '@/utils/supabase/server';
+
+   export async function GET(request: Request) {
+     const { searchParams, origin } = new URL(request.url);
+     const code = searchParams.get('code');
+     let next = searchParams.get('next') ?? '/';
+     if (!next.startsWith('/')) next = '/';
+
+     if (code) {
+       const supabase = await createClient();
+       const { error } = await supabase.auth.exchangeCodeForSession(code);
+       if (!error) return NextResponse.redirect(`${origin}${next}`);
+     }
+
+     return NextResponse.redirect(`${origin}/auth/auth-code-error`);
+   }
+   ```
+3. Update **Supabase dashboard**:
+
+   * Set **Site URL** to your **production URL**:
+     `https://task-and-habit-tracker.vercel.app`
+   * This is the **core issue** that caused hosted OAuth failures.
+
+---
+
+## 4. **Supabase `exchangeCodeForSession` Usage**
+
+* Next.js 16 / Supabase SDK now requires:
+
+  ```ts
+  await supabase.auth.exchangeCodeForSession(code);
+  ```
+* **No need** to manually call `getSessionFromUrl` in Next.js server code anymore.
+* Always pass `code` from the query params.
+
+---
+
+## 5. **Environment Variables Best Practices**
+
+* Local environment:
+
+  ```
+  NEXT_PUBLIC_SITE_URL=http://localhost:3000
+  ```
+
+* Production / Preview:
+
+  ```
+  NEXT_PUBLIC_SITE_URL=https://task-and-habit-tracker.vercel.app
+  ```
+
+* Your code can read this dynamically:
+
+  ```ts
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://task-and-habit-tracker.vercel.app';
+  ```
+
+* This avoids having to manually change URLs when switching environments.
+
+---
+
+## 6. **Other Notes / Tips**
+
+* **Real-time channel names** should **not include timestamps**; use stable names per user or table to prevent duplicate subscriptions.
+* **Cross-slice events** in your state management system can coexist with real-time events, but ensure they **don’t double-update the UI**.
+* After fixing Site URL in Supabase, OAuth flow should redirect immediately to `/dashboard` on hosted version.
+* Keep `/auth/callback/route.ts` **as the single source of truth** for processing OAuth codes; remove conflicting `page.tsx`.
+
+---
+
+## ✅ Summary of Action Items to Fix Hosted App
+
+1. Update **Supabase Site URL** to hosted URL.
+2. Remove `/auth/callback/page.tsx` — keep only `route.ts`.
+3. Ensure `route.ts` uses:
+
+   ```ts
+   supabase.auth.exchangeCodeForSession(code)
+   ```
+4. Update `signInWithGoogle()` to **not pass redirect URL as an argument**.
+5. Use **stable real-time channels** in `TaskList` and `HabitList`.
+6. Deploy again.
+
+---
+
+After these steps, the **app works correctly both locally and hosted**:
+
+* Google sign-in redirects to `/dashboard`.
+* Real-time updates work without console errors.
+* No conflicts in Next.js routes.
+
+---
