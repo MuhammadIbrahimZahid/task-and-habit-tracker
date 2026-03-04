@@ -6,12 +6,16 @@ import { Button } from '@/components/ui/button';
 export default function SignInPage() {
   async function handleSignIn() {
     try {
-      const { url } = await signInWithGoogle('/dashboard');
+      const { url } = await signInWithGoogle(); // <-- only `url`
       if (url) {
         window.location.href = url;
+      } else {
+        // fallback redirect
+        window.location.href = '/dashboard';
       }
     } catch (error) {
       console.error('Google sign-in failed:', error);
+      alert('Sign-in failed. Please try again.');
     }
   }
 
