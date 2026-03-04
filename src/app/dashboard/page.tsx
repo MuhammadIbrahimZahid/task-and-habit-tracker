@@ -1,6 +1,4 @@
 'use client';
-
-import { signOut } from '@/actions/auth';
 import { useRouter } from 'next/navigation';
 import TaskForm from '@/components/tasks/TaskForm';
 import TaskList from '@/components/tasks/TaskList';
@@ -196,7 +194,8 @@ export default function DashboardPage() {
 
   async function handleSignOut() {
     try {
-      await signOut();
+      const supabase = createClient();
+      await supabase.auth.signOut();
       router.replace('/sign-in');
     } catch (error) {
       console.error('Error signing out:', error);

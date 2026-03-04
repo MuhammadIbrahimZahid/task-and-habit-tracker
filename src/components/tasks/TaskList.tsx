@@ -130,110 +130,56 @@ export default function TaskList({ userId, refreshKey }: TaskListProps) {
 
   // Real-time subscription setup
   useEffect(() => {
-    let isSubscribed = true;
+    if (!userId) return;
 
-    const setupRealtimeSubscription = async () => {
+    let isSubscribed = true;
+    let subscription: SubscriptionHandle;
+
+    const setupSubscription = async () => {
       try {
         realtime('Setting up real-time subscription for tasks...');
 
-        // Use the centralized subscription system
-        const { subscribeToTable } = await import(
-          '@/lib/realtime-subscriptions'
-        );
+        subscription = await subscribeToTasks(userId, (payload) => {
+          if (!isSubscribed) return;
 
-        const subscription = await subscribeToTable({
-          channelName: `tasks-list-${userId}-${Date.now()}`,
-          table: 'tasks',
-          event: 'ALL',
-          filter: `user_id=eq.${userId}`,
-          onEvent: (payload) => {
-            if (!isSubscribed) return;
-            realtime('TaskList: Real-time event received:', payload);
+          const { eventType, new: newRecord } = payload;
+          const task = newRecord as Task;
 
-            const { eventType, new: newRecord } = payload;
-            const task = newRecord as Task;
-
-            if (eventType === 'INSERT') {
-              debug('TaskList: Processing INSERT event');
+          if (eventType === 'INSERT') {
+            setTasks((prev) => {
+              if (prev.some((t) => t.id === task.id)) return prev;
+              emitTaskCreated(task.id, task.user_id, task.title);
+              return [task, ...prev];
+            });
+          } else if (eventType === 'UPDATE') {
+            if (task.deleted_at) {
               setTasks((prev) => {
-                // Check if task already exists to prevent duplicates
-                if (prev.some((t) => t.id === task.id)) {
-                  debug('Task already exists, skipping:', task.title);
-                  return prev;
-                }
-                debug('Adding new task to state:', task.title);
-
-                // Emit cross-slice event for task creation
-                emitTaskCreated(task.id, task.user_id, task.title);
-
-                return [task, ...prev];
+                emitTaskDeleted(task.id, task.user_id, task.title);
+                return prev.filter((t) => t.id !== task.id);
               });
-            } else if (eventType === 'UPDATE') {
-              debug('TaskList: Processing UPDATE event');
-
-              // Check if this is a soft delete (deleted_at is set)
-              if (task.deleted_at) {
-                realtime('Soft DELETE detected:', task.title);
-                setTasks((prev) => {
-                  debug('Removing soft-deleted task from state:', task.title);
-
-                  // Emit cross-slice event for task deletion
-                  emitTaskDeleted(task.id, task.user_id, task.title);
-
-                  return prev.filter((t) => t.id !== task.id);
-                });
-              } else {
-                // Regular update
-                setTasks((prev) => {
-                  debug('Updating task in state:', task.title);
-
-                  // Emit cross-slice event for task update
-                  emitTaskUpdated(task.id, task.user_id, task.title);
-
-                  return prev.map((t) => (t.id === task.id ? task : t));
-                });
-              }
+            } else {
+              setTasks((prev) => {
+                emitTaskUpdated(task.id, task.user_id, task.title);
+                return prev.map((t) => (t.id === task.id ? task : t));
+              });
             }
-          },
-          onError: (error) => {
-            console.error('❌ TaskList: Real-time subscription error:', error);
-            setIsRealtimeConnected(false);
-          },
-          onConnect: () => {
-            success('TaskList: Tasks subscription connected');
-            setIsRealtimeConnected(true);
-          },
-          onDisconnect: () => {
-            warning('TaskList: Tasks subscription disconnected');
-            setIsRealtimeConnected(false);
-          },
+          }
         });
 
-        subscriptionRef.current = subscription;
         setIsRealtimeConnected(true);
         success('TaskList: Real-time subscription established');
-      } catch (error) {
-        console.error(
-          '❌ TaskList: Failed to setup real-time subscription:',
-          error,
-        );
+      } catch (err) {
+        console.error('❌ TaskList: Realtime subscription failed:', err);
         setIsRealtimeConnected(false);
       }
     };
 
-    if (userId) {
-      setupRealtimeSubscription();
-    }
+    setupSubscription();
 
-    // Cleanup subscription on unmount
     return () => {
       isSubscribed = false;
-      if (subscriptionRef.current) {
-        realtime('Cleaning up real-time subscription for tasks');
-        subscriptionRef.current.unsubscribe().catch(console.error);
-        subscriptionRef.current = null;
-        setIsRealtimeConnected(false);
-      }
+      subscription?.unsubscribe().catch(console.error);
+      setIsRealtimeConnected(false);
     };
   }, [userId]);
 
