@@ -2,21 +2,19 @@
 
 import { createClient } from '@/utils/supabase/server';
 
-export async function signInWithGoogle(redirectTo: string) {
+export async function signInWithGoogle(redirectTo: string = '/dashboard') {
   const supabase = await createClient();
 
-  const isDev = process.env.NODE_ENV === 'development';
-  const baseUrl = isDev
-    ? 'http://localhost:3000'
-    : process.env.NEXT_PUBLIC_SITE_URL ||
-      'https://task-and-habit-tracker.vercel.app';
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    'https://task-and-habit-tracker.vercel.app';
 
-  const redirectUrl = `${baseUrl}/auth/callback?next=${redirectTo}`;
+  const redirectUrl = `${baseUrl}${redirectTo}`; // Just the final page
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: redirectUrl,
+      redirectTo: redirectUrl, // <-- only the target page
       queryParams: {
         prompt: 'select_account',
       },
